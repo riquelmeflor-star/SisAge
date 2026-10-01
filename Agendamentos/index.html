@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CETI Senador José Cândido Ferraz - Sistema de Agendamento</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+
+    <!-- Header / Topbar -->
+    <header class="topbar">
+        <div class="brand">
+            <div class="logo-icon"><i class="fa-solid fa-graduation-cap"></i></div>
+            <div>
+                <h1>CETI SENADOR JOSÉ CÂNDIDO FERRAZ</h1>
+                <p>Sistema de Agendamento • Lab. Informática & Equipamentos</p>
+            </div>
+        </div>
+        <div class="search-bar">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input type="text" placeholder="Buscar recurso, horário ou professor...">
+        </div>
+        <div class="user-profile">
+            <i class="fa-regular fa-bell notification-badge"></i>
+            <div class="avatar">AS</div>
+            <div class="user-info">
+                <span class="user-name">Profª Ana Silva</span>
+                <span class="user-role">Docente</span>
+            </div>
+            <button id="btnLogout" class="btn-secondary" style="margin-left: 10px;">Sair</button>
+        </div>
+    </header>
+
+    <div class="dashboard-container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <nav class="nav-menu">
+                <a href="#" class="nav-item active"><i class="fa-solid fa-chart-pie"></i> Dashboard</a>
+                <a href="#" class="nav-item" id="btnOpenModalNav"><i class="fa-solid fa-calendar-plus"></i> Novo Agendamento</a>
+                <a href="#laboratorios" class="nav-item resource-filter" data-filter="laboratorio"><i class="fa-solid fa-desktop"></i> Laboratórios de Info</a>
+                <a href="#equipamentos" class="nav-item resource-filter" data-filter="equipamento"><i class="fa-solid fa-video"></i> Equipamentos</a>
+                <a href="#" class="nav-item"><i class="fa-solid fa-calendar-check"></i> Minhas Reservas</a>
+                <a href="relatorios.html" class="nav-item"><i class="fa-solid fa-chart-line"></i> Relatórios de Uso</a>
+            </nav>
+            <div class="support-box">
+                <h4>Suporte do Laboratório</h4>
+                <p>Precisa de suporte técnico nos computadores?</p>
+                <button class="btn-support">Abrir Chamado</button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="content-header">
+                <div>
+                    <h2>Painel de Agendamentos</h2>
+                    <p>Selecione o espaço ou equipamento desejado para agendar suas aulas.</p>
+                </div>
+                <button class="btn-primary" id="btnOpenModal">+ Novo Agendamento</button>
+            </div>
+
+            <div class="admin-tools" id="adminTools">
+                <button class="btn-primary" id="btnAddLab">Adicionar Laboratório</button>
+                <button class="btn-secondary" id="btnAddEquipment">Adicionar Equipamento</button>
+            </div>
+
+            <!-- Resource Cards -->
+            <section class="resources-grid" id="laboratorios">
+                <div class="card" data-category="laboratorio">
+                    <div class="card-header">
+                        <div class="card-icon blue"><i class="fa-solid fa-desktop"></i></div>
+                        <span class="badge available"><i class="fa-solid fa-circle"></i> Disponível</span>
+                    </div>
+                    <h3>Laboratório de Info 1</h3>
+                    <p class="card-desc">25 PCs • Ar-condicionado • Projetor</p>
+                    <div class="card-footer">
+                        <span>Próxima vaga: <strong>Hoje (08:30)</strong></span>
+                        <button class="btn-card-action primary">Reservar</button>
+                        <button class="btn-card-action danger btn-remove-resource" type="button">Remover</button>
+                    </div>
+                </div>
+
+                <div class="card" data-category="laboratorio">
+                    <div class="card-header">
+                        <div class="card-icon red"><i class="fa-solid fa-desktop"></i></div>
+                        <span class="badge occupied"><i class="fa-solid fa-circle"></i> Ocupado até 10:20</span>
+                    </div>
+                    <h3>Laboratório de Info 2</h3>
+                    <p class="card-desc">20 PCs • Internet Fibra de Alta Velocidade</p>
+                    <div class="card-footer">
+                        <span>Em uso por: <strong>Prof. Marcos</strong></span>
+                        <button class="btn-card-action secondary">Ver Horários</button>
+                        <button class="btn-card-action danger btn-remove-resource" type="button">Remover</button>
+                    </div>
+                </div>
+
+                <div class="card" data-category="equipamento">
+                    <div class="card-header">
+                        <div class="card-icon green"><i class="fa-solid fa-video"></i></div>
+                        <span class="badge available"><i class="fa-solid fa-circle"></i> 2 Disponíveis</span>
+                    </div>
+                    <h3>Kits de Projetor & Som</h3>
+                    <p class="card-desc">Epson HDMI + Caixa Amplificada Móvel</p>
+                    <div class="card-footer">
+                        <span>Retirada na Coordenação</span>
+                        <button class="btn-card-action success">Reservar Kit</button>
+                        <button class="btn-card-action danger btn-remove-resource" type="button">Remover</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Calendar Schedule Grid -->
+            <section class="schedule-section">
+                <div class="schedule-header">
+                    <h3>Grade de Disponibilidade Semanal</h3>
+                    <div class="week-picker">
+                        <button class="btn-icon">&lt;</button>
+                        <span>31 de Ago – 04 de Set, 2026</span>
+                        <button class="btn-icon">&gt;</button>
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <table class="schedule-table">
+                        <thead>
+                            <tr>
+                                <th>Horário</th>
+                                <th class="active-day">Segunda (31/08) <br><small>Hoje</small></th>
+                                <th>Terça (01/09)</th>
+                                <th>Quarta (02/09)</th>
+                                <th>Quinta (03/09)</th>
+                                <th>Sexta (04/09)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td class="time-slot"><strong>1ª Aula</strong><br>07:30 - 08:30</td>
+                                <td><div class="slot-reserved navy"><strong>Prof. André • Física</strong><br>Lab. Info 1 (3º A)</div></td>
+                                <td><div class="slot-empty">+ Reservar</div></td>
+                                <td><div class="slot-reserved green"><strong>Profª Carla • Bio</strong><br>Projetor 1</div></td>
+                                <td><div class="slot-empty">+ Reservar</div></td>
+                                <td><div class="slot-empty">+ Reservar</div></td>
+                            </tr>
+                            <tr>
+                                <td class="time-slot"><strong>2ª Aula</strong><br>08:30 - 09:30</td>
+                                <td><div class="slot-reserved blue"><strong>Sua Reserva (Profª Ana)</strong><br>Lab 1 • Mat. Comp.</div></td>
+                                <td><div class="slot-reserved dark"><strong>Prof. Marcos</strong><br>Lab. Info 2</div></td>
+                                <td><div class="slot-empty">+ Reservar</div></td>
+                                <td><div class="slot-empty">+ Reservar</div></td>
+                                <td><div class="slot-empty">+ Reservar</div></td>
+                            </tr>
+                            <tr class="break-row">
+                                <td colspan="6">INTERVALO / RECREIO (09:30 - 09:50)</td>
+                            </tr>
+                            <tr>
+                                <td class="time-slot"><strong>3ª Aula</strong><br>09:50 - 10:50</td>
+                                <td><div class="slot-empty highlight">+ Clique para Agendar</div></td>
+                                <td><div class="slot-empty">+ Reservar</div></td>
+                                <td><div class="slot-empty">+ Reservar</div></td>
+                                <td><div class="slot-empty">+ Reservar</div></td>
+                                <td><div class="slot-empty">+ Reservar</div></td>
+                            </tr>
+                            <tr>
+                                <td class="time-slot"><strong>4ª Aula</strong><br>10:50 - 11:50</td>
+                                <td><div class="slot-empty">+ Reservar</div></td>
+                                <td><div class="slot-empty">+ Reservar</div></td>
+                                <td><div class="slot-empty">+ Reservar</div></td>
+                                <td><div class="slot-empty">+ Reservar</div></td>
+                                <td><div class="slot-empty">+ Reservar</div></td>
+                            </tr>
+                            <tr>
+                                <td class="time-slot"><strong>5ª Aula</strong><br>11:50 - 12:50</td>
+                                <td><div class="slot-empty">+ Reservar</div></td>
+                                <td><div class="slot-empty">+ Reservar</div></td>
+                                <td><div class="slot-empty">+ Reservar</div></td>
+                                <td><div class="slot-empty">+ Reservar</div></td>
+                                <td><div class="slot-empty">+ Reservar</div></td>
+                            </tr>
+                            <tr class="break-row">
+                                <td colspan="6">ALMOÇO (12:50 - 13:50)</td>
+                            </tr>
+                            <tr>
+                                <td class="time-slot"><strong>6ª Aula</strong><br>13:50 - 14:50</td>
+                                <td><div class="slot-empty">+ Reservar</div></td>
+                                <td><div class="slot-empty">+ Reservar</div></td>
+                                <td><div class="slot-empty">+ Reservar</div></td>
+                                <td><div class="slot-empty">+ Reservar</div></td>
+                                <td><div class="slot-empty">+ Reservar</div></td>
+                            </tr>
+                            <tr>
+                                <td class="time-slot"><strong>7ª Aula</strong><br>14:50 - 15:50</td>
+                                <td><div class="slot-empty">+ Reservar</div></td>
+                                <td><div class="slot-empty">+ Reservar</div></td>
+                                <td><div class="slot-empty">+ Reservar</div></td>
+                                <td><div class="slot-empty">+ Reservar</div></td>
+                                <td><div class="slot-empty">+ Reservar</div></td>
+                            </tr>
+                            <tr>
+                                <td class="time-slot"><strong>8ª Aula</strong><br>15:50 - 16:50</td>
+                                <td><div class="slot-empty">+ Reservar</div></td>
+                                <td><div class="slot-empty">+ Reservar</div></td>
+                                <td><div class="slot-empty">+ Reservar</div></td>
+                                <td><div class="slot-empty">+ Reservar</div></td>
+                                <td><div class="slot-empty">+ Reservar</div></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Modal Form -->
+    <div class="modal-overlay" id="modalBooking">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Nova Reserva de Recurso</h3>
+                <button class="close-modal" id="btnCloseModal">&times;</button>
+            </div>
+            <form id="bookingForm" class="modal-body">
+                <div class="form-group">
+                    <label for="recurso">Recurso ou Espaço</label>
+                    <select id="recurso" required>
+                        <option value="1">Laboratório de Info 1</option>
+                        <option value="2">Laboratório de Info 2</option>
+                        <option value="3">Projetor Epson X12</option>
+                        <option value="4">Caixa de Som Ativa</option>
+                    </select>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="data">Data</label>
+                        <input type="date" id="data" required value="2026-08-31">
+                    </div>
+                    <div class="form-group">
+                        <label for="aula">Horário / Aula</label>
+                        <select id="aula" required>
+                            <option value="1">1ª Aula (07:30 - 08:30)</option>
+                            <option value="2">2ª Aula (08:30 - 09:30)</option>
+                            <option value="3">3ª Aula (09:50 - 10:50)</option>
+                            <option value="4">4ª Aula (10:50 - 11:50)</option>
+                            <option value="5">5ª Aula (11:50 - 12:50)</option>
+                            <option value="6">6ª Aula (13:50 - 14:50)</option>
+                            <option value="7">7ª Aula (14:50 - 15:50)</option>
+                            <option value="8">8ª Aula (15:50 - 16:50)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="disciplina">Disciplina</label>
+                        <input type="text" id="disciplina" placeholder="Ex: Matemática" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="turma">Turma</label>
+                        <input type="text" id="turma" placeholder="Ex: 3º Ano B" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn-secondary" id="btnCancelModal">Cancelar</button>
+                    <button type="submit" class="btn-primary">Confirmar Agendamento</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="resourceModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Gerenciar Recurso</h3>
+                <button class="close-modal" id="btnCloseResourceModal">&times;</button>
+            </div>
+            <form id="resourceForm" class="modal-body">
+                <div class="form-group">
+                    <label for="resourceName">Nome do recurso</label>
+                    <input type="text" id="resourceName" placeholder="Ex: Laboratório de Informática 3" required>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="resourceCategory">Categoria</label>
+                        <select id="resourceCategory" required>
+                            <option value="laboratorio">Laboratório</option>
+                            <option value="equipamento">Equipamento</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="resourceStatus">Status</label>
+                        <select id="resourceStatus" required>
+                            <option value="disponivel">Disponível</option>
+                            <option value="manutencao">Manutenção</option>
+                            <option value="indisponivel">Indisponível</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="resourceCapacity">Capacidade</label>
+                        <input type="number" id="resourceCapacity" min="0" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label for="resourceType">Tipo</label>
+                        <select id="resourceType">
+                            <option value="laboratorio">Laboratório</option>
+                            <option value="projetor">Projetor</option>
+                            <option value="som">Som</option>
+                            <option value="kit_multimidia">Kit multimídia</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="resourceDescription">Descrição</label>
+                    <textarea id="resourceDescription" rows="3" placeholder="Descreva o recurso..."></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn-secondary" id="btnCancelResourceModal">Cancelar</button>
+                    <button type="submit" class="btn-primary">Salvar Recurso</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="auth.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

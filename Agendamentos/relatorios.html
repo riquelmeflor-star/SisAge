@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Relatórios de Uso - CETI</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <header class="topbar">
+        <div class="brand">
+            <div class="logo-icon"><i class="fa-solid fa-graduation-cap"></i></div>
+            <div>
+                <h1>CETI SENADOR JOSÉ CÂNDIDO FERRAZ</h1>
+                <p>Sistema de Agendamento • Relatórios</p>
+            </div>
+        </div>
+
+        <div class="user-profile">
+            <i class="fa-regular fa-bell notification-badge"></i>
+            <div class="avatar">AS</div>
+            <div class="user-info">
+                <span class="user-name">Profª Ana Silva</span>
+                <span class="user-role">Docente</span>
+            </div>
+            <button id="btnLogout" class="btn-secondary" style="margin-left: 10px;">Sair</button>
+        </div>
+    </header>
+
+    <div class="dashboard-container">
+        <aside class="sidebar">
+            <nav class="nav-menu">
+                <a href="index.html" class="nav-item"><i class="fa-solid fa-chart-pie"></i> Dashboard</a>
+                <a href="index.html" class="nav-item"><i class="fa-solid fa-calendar-plus"></i> Novo Agendamento</a>
+                <a href="#" class="nav-item"><i class="fa-solid fa-desktop"></i> Laboratórios de Info</a>
+                <a href="#" class="nav-item"><i class="fa-solid fa-video"></i> Equipamentos</a>
+                <a href="#" class="nav-item"><i class="fa-solid fa-calendar-check"></i> Minhas Reservas</a>
+                <a href="relatorios.html" class="nav-item active"><i class="fa-solid fa-chart-line"></i> Relatórios de Uso</a>
+            </nav>
+
+            <div class="support-box">
+                <h4>Suporte do Laboratório</h4>
+                <p>Precisa de suporte técnico nos computadores?</p>
+                <button class="btn-support">Abrir Chamado</button>
+            </div>
+        </aside>
+
+        <main class="main-content report-page">
+            <div class="report-header">
+                <div>
+                    <h2>Relatórios de Uso</h2>
+                    <p>Resumo do uso dos recursos e agendamentos do período</p>
+                </div>
+
+                <div class="report-actions">
+                    <button class="btn-primary" id="btnExportPdf">Exportar PDF</button>
+                    <button class="btn-secondary" id="btnRefreshReport">Atualizar</button>
+                </div>
+            </div>
+
+            <section class="stats-grid">
+                <div class="stat-card">
+                    <span>Total de reservas</span>
+                    <strong id="totalReservas">0</strong>
+                </div>
+                <div class="stat-card">
+                    <span>Recursos ativos</span>
+                    <strong id="totalRecursos">0</strong>
+                </div>
+                <div class="stat-card">
+                    <span>Uso do mês</span>
+                    <strong id="usoMes">0%</strong>
+                </div>
+                <div class="stat-card">
+                    <span>Reservas pendentes</span>
+                    <strong id="reservasPendentes">0</strong>
+                </div>
+            </section>
+
+            <section class="report-panel">
+                <div class="report-toolbar">
+                    <h3>Detalhamento</h3>
+                    <div style="display: flex; gap: 12px; align-items: center;">
+                        <label for="filtroPeriodo">Período:</label>
+                        <select id="filtroPeriodo">
+                            <option value="7">Últimos 7 dias</option>
+                            <option value="30" selected>Últimos 30 dias</option>
+                            <option value="90">Últimos 90 dias</option>
+                        </select>
+                    </div>
+                </div>
+
+                <table class="report-table">
+                    <thead>
+                        <tr>
+                            <th>Recurso</th>
+                            <th>Disciplina</th>
+                            <th>Professor</th>
+                            <th>Data</th>
+                            <th>Aula</th>
+                            <th>Horário</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="reportBody">
+                        <tr>
+                            <td colspan="7" class="empty-state">Carregando relatórios...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+        </main>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.1.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+    <script src="auth.js"></script>
+    <script src="report.js"></script>
+</body>
+</html>
