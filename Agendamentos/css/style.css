@@ -380,6 +380,7 @@ body {
 .schedule-table th.active-day { background: #EBF5FF; color: var(--blue); }
 
 .slot-reserved {
+    background: hsl(var(--reservation-hue, 210) 58% 30%);
     color: #fff;
     padding: 8px 9px;
     border-radius: 8px;

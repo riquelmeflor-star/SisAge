@@ -62,6 +62,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const renderSchedule = () => {
         if (!scheduleHead || !scheduleBody) return;
 
+        const reservasAtivas = getReservations()
+            .filter((reserva) => reserva.status !== 'cancelada')
+            .sort((a, b) => String(a.criadoEm || a.id).localeCompare(String(b.criadoEm || b.id)));
+        const corPorReserva = new Map(reservasAtivas.map((reserva, index) => [
+            String(reserva.id), (index * 137.508) % 360
+        ]));
         const weekDays = Array.from({ length: 5 }, (_, index) => {
             const date = new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() + index);
             return { date, key: getDateKey(date) };
@@ -82,18 +88,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const rows = [];
         aulas.forEach((aula, index) => {
             const cells = weekDays.map(({ key }) => {
-                const reservas = getReservations().filter((reserva) =>
+                const reservas = reservasAtivas.filter((reserva) =>
                     String(reserva.data).slice(0, 10) === key &&
-                    String(reserva.aula) === aula.id &&
-                    reserva.status !== 'cancelada'
+                    String(reserva.aula) === aula.id
                 );
                 if (!reservas.length) {
                     return `<td><button class="slot-empty" type="button" data-slot-date="${key}" data-slot-aula="${aula.id}">+ Reservar</button></td>`;
                 }
 
-                const cores = ['navy', 'blue', 'green', 'orange', 'purple', 'red', 'teal'];
-                const blocos = reservas.map((reserva, reservaIndex) => `
-                    <div class="slot-reserved ${cores[reservaIndex % cores.length]}">
+                const blocos = reservas.map((reserva) => `
+                    <div class="slot-reserved" style="--reservation-hue: ${corPorReserva.get(String(reserva.id)) ?? 210}">
                         <strong>${escapeHTML(reserva.professor || 'Reserva')} • ${escapeHTML(reserva.disciplina || '')}</strong><br>
                         ${escapeHTML(reserva.recursoNome || reserva.recurso || 'Recurso')} (${escapeHTML(reserva.turma || '—')})
                     </div>
