@@ -91,7 +91,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     return `<td><button class="slot-empty" type="button" data-slot-date="${key}" data-slot-aula="${aula.id}">+ Reservar</button></td>`;
                 }
 
-                const cores = ['navy', 'blue', 'green', 'dark'];
+                const cores = ['navy', 'blue', 'green', 'orange', 'purple', 'red', 'teal'];
                 const blocos = reservas.map((reserva, reservaIndex) => `
                     <div class="slot-reserved ${cores[reservaIndex % cores.length]}">
                         <strong>${escapeHTML(reserva.professor || 'Reserva')} • ${escapeHTML(reserva.disciplina || '')}</strong><br>

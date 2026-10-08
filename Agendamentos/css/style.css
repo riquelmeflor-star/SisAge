@@ -381,15 +381,24 @@ body {
 
 .slot-reserved {
     color: #fff;
-    padding: 8px;
-    border-radius: 6px;
+    padding: 8px 9px;
+    border-radius: 8px;
     text-align: left;
     font-size: 10px;
+    line-height: 1.35;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+    margin-bottom: 6px;
+    opacity: 0.96;
 }
-.slot-reserved.navy { background: var(--navy); }
-.slot-reserved.blue { background: var(--blue); }
-.slot-reserved.green { background: var(--green); }
-.slot-reserved.dark { background: var(--dark); }
+.slot-reserved.navy { background: linear-gradient(135deg, #3B5F8A, #5B7BA6); }
+.slot-reserved.blue { background: linear-gradient(135deg, #4A90E2, #7BB6F2); }
+.slot-reserved.green { background: linear-gradient(135deg, #5E9F6E, #8CC79A); }
+.slot-reserved.orange { background: linear-gradient(135deg, #D4A75D, #E8C98F); }
+.slot-reserved.purple { background: linear-gradient(135deg, #8A7CC8, #B5A9E6); }
+.slot-reserved.red { background: linear-gradient(135deg, #D17E7E, #E9A4A4); }
+.slot-reserved.teal { background: linear-gradient(135deg, #5AA8A3, #8ECBC2); }
+.slot-reserved.dark { background: linear-gradient(135deg, #64748B, #94A3B8); }
 
 .slot-empty {
     width: 100%;
