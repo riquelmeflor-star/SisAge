@@ -9,7 +9,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnCancelResourceModal = document.getElementById('btnCancelResourceModal');
     const bookingForm = document.getElementById('bookingForm');
     const resourceForm = document.getElementById('resourceForm');
-    const emptySlots = document.querySelectorAll('.slot-empty');
     const recursoSelect = document.getElementById('recurso');
     const dataInput = document.getElementById('data');
     const aulaSelect = document.getElementById('aula');
@@ -17,12 +16,108 @@ document.addEventListener('DOMContentLoaded', () => {
     const turmaInput = document.getElementById('turma');
     const resourceFilters = document.querySelectorAll('.resource-filter');
     const resourcesGrid = document.querySelector('.resources-grid');
+    const scheduleTable = document.querySelector('.schedule-table');
+    const scheduleHead = scheduleTable ? scheduleTable.querySelector('thead tr') : null;
+    const scheduleBody = scheduleTable ? scheduleTable.querySelector('tbody') : null;
+    const weekLabel = document.querySelector('.week-label');
     const adminTools = document.getElementById('adminTools');
     const btnAddLab = document.getElementById('btnAddLab');
     const btnAddEquipment = document.getElementById('btnAddEquipment');
     const managementRoles = ['coordenador', 'admin'];
 
-    const today = new Date().toISOString().split('T')[0];
+    const getDateKey = (date) => [
+        date.getFullYear(),
+        String(date.getMonth() + 1).padStart(2, '0'),
+        String(date.getDate()).padStart(2, '0')
+    ].join('-');
+    const getMonday = (date) => {
+        const monday = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+        monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+        return monday;
+    };
+    const todayFormatter = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' });
+    const weekdayFormatter = new Intl.DateTimeFormat('pt-BR', { weekday: 'long' });
+    let today = getDateKey(new Date());
+    let weekStart = getMonday(new Date());
+
+    const aulas = [
+        { id: '1', nome: '1ª Aula', horario: '07:30 - 08:30' },
+        { id: '2', nome: '2ª Aula', horario: '08:30 - 09:30' },
+        { id: '3', nome: '3ª Aula', horario: '09:50 - 10:50' },
+        { id: '4', nome: '4ª Aula', horario: '10:50 - 11:50' },
+        { id: '5', nome: '5ª Aula', horario: '11:50 - 12:50' },
+        { id: '6', nome: '6ª Aula', horario: '13:50 - 14:50' },
+        { id: '7', nome: '7ª Aula', horario: '14:50 - 15:50' },
+        { id: '8', nome: '8ª Aula', horario: '15:50 - 16:50' }
+    ];
+
+    const escapeHTML = (value) => String(value ?? '').replace(/[&<>"']/g, (character) => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+    })[character]);
+
+    const renderSchedule = () => {
+        if (!scheduleHead || !scheduleBody) return;
+
+        const weekDays = Array.from({ length: 5 }, (_, index) => {
+            const date = new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() + index);
+            return { date, key: getDateKey(date) };
+        });
+        const weekEnd = weekDays[weekDays.length - 1].date;
+        if (weekLabel) {
+            weekLabel.textContent = `${todayFormatter.format(weekDays[0].date)} – ${todayFormatter.format(weekEnd)}, ${weekEnd.getFullYear()}`;
+        }
+
+        scheduleHead.innerHTML = `<th>Horário</th>${weekDays.map(({ date, key }) => {
+            const weekday = weekdayFormatter.format(date);
+            const title = weekday.charAt(0).toUpperCase() + weekday.slice(1);
+            const isToday = key === today;
+            const dateLabel = date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+            return `<th class="${isToday ? 'active-day' : ''}">${title} (${dateLabel})${isToday ? '<br><small>Hoje</small>' : ''}</th>`;
+        }).join('')}`;
+
+        const rows = [];
+        aulas.forEach((aula, index) => {
+            const cells = weekDays.map(({ key }) => {
+                const reservas = getReservations().filter((reserva) =>
+                    String(reserva.data).slice(0, 10) === key &&
+                    String(reserva.aula) === aula.id &&
+                    reserva.status !== 'cancelada'
+                );
+                if (!reservas.length) {
+                    return `<td><button class="slot-empty" type="button" data-slot-date="${key}" data-slot-aula="${aula.id}">+ Reservar</button></td>`;
+                }
+
+                const cores = ['navy', 'blue', 'green', 'dark'];
+                const blocos = reservas.map((reserva, reservaIndex) => `
+                    <div class="slot-reserved ${cores[reservaIndex % cores.length]}">
+                        <strong>${escapeHTML(reserva.professor || 'Reserva')} • ${escapeHTML(reserva.disciplina || '')}</strong><br>
+                        ${escapeHTML(reserva.recursoNome || reserva.recurso || 'Recurso')} (${escapeHTML(reserva.turma || '—')})
+                    </div>
+                `).join('');
+                return `<td>${blocos}</td>`;
+            }).join('');
+
+            rows.push(`<tr><td class="time-slot"><strong>${aula.nome}</strong><br>${aula.horario}</td>${cells}</tr>`);
+            if (index === 1) rows.push('<tr class="break-row"><td colspan="6">INTERVALO / RECREIO (09:30 - 09:50)</td></tr>');
+            if (index === 4) rows.push('<tr class="break-row"><td colspan="6">ALMOÇO (12:50 - 13:50)</td></tr>');
+        });
+        scheduleBody.innerHTML = rows.join('');
+    };
+
+    const refreshCurrentDate = () => {
+        const currentDate = getDateKey(new Date());
+        if (currentDate === today) return;
+
+        const previousDate = today;
+        today = currentDate;
+        weekStart = getMonday(new Date());
+        if (dataInput && dataInput.value === previousDate) dataInput.value = today;
+        renderSchedule();
+    };
 
     const RESOURCES_KEY = 'cetiRecursos';
     const RESERVAS_KEY = 'cetiReservas';
@@ -406,6 +501,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const reservas = getReservations().filter((reserva) => String(reserva.id) !== String(id));
             saveReservations(reservas);
             renderMyReservations();
+            renderSchedule();
             alert('Reserva cancelada com sucesso!');
             return;
         }
@@ -513,14 +609,37 @@ document.addEventListener('DOMContentLoaded', () => {
         dataInput.value = today;
     }
 
-    emptySlots.forEach((slot) => {
-        slot.addEventListener('click', () => {
+    if (scheduleBody) {
+        scheduleBody.addEventListener('click', (event) => {
+            const slot = event.target.closest('[data-slot-date]');
+            if (!slot) return;
+
+            if (dataInput) dataInput.value = slot.dataset.slotDate;
+            if (aulaSelect) aulaSelect.value = slot.dataset.slotAula;
             openModal();
-            if (dataInput && !dataInput.value) {
-                dataInput.value = today;
+        });
+    }
+
+    const weekPicker = document.querySelector('.week-picker');
+    if (weekPicker) {
+        weekPicker.addEventListener('click', (event) => {
+            const offsetButton = event.target.closest('[data-week-offset]');
+            if (offsetButton) {
+                weekStart.setDate(weekStart.getDate() + Number(offsetButton.dataset.weekOffset) * 7);
+                renderSchedule();
+                return;
+            }
+
+            if (event.target.closest('[data-week-today]')) {
+                refreshCurrentDate();
+                weekStart = getMonday(new Date());
+                renderSchedule();
             }
         });
-    });
+    }
+
+    window.setInterval(refreshCurrentDate, 60000);
+    window.addEventListener('focus', refreshCurrentDate);
 
     if (bookingForm) {
         bookingForm.addEventListener('submit', (event) => {
@@ -573,10 +692,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
             closeModal();
             renderMyReservations();
+            renderSchedule();
         });
     }
 
     renderResources();
     renderMyReservations();
+    renderSchedule();
     showDashboardResources();
 });

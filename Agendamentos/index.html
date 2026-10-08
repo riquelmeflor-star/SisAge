@@ -126,96 +126,19 @@
                 <div class="schedule-header">
                     <h3>Grade de Disponibilidade Semanal</h3>
                     <div class="week-picker">
-                        <button class="btn-icon">&lt;</button>
-                        <span>31 de Ago – 04 de Set, 2026</span>
-                        <button class="btn-icon">&gt;</button>
+                        <button class="btn-icon" type="button" data-week-offset="-1" aria-label="Semana anterior">&lt;</button>
+                        <span class="week-label" aria-live="polite"></span>
+                        <button class="btn-icon" type="button" data-week-offset="1" aria-label="Próxima semana">&gt;</button>
+                        <button class="btn-icon week-today" type="button" data-week-today>Hoje</button>
                     </div>
                 </div>
 
                 <div class="table-container">
                     <table class="schedule-table">
                         <thead>
-                            <tr>
-                                <th>Horário</th>
-                                <th class="active-day">Segunda (31/08) <br><small>Hoje</small></th>
-                                <th>Terça (01/09)</th>
-                                <th>Quarta (02/09)</th>
-                                <th>Quinta (03/09)</th>
-                                <th>Sexta (04/09)</th>
-                            </tr>
+                            <tr></tr>
                         </thead>
-                        <tbody>
-                            <tr>
-                                <td class="time-slot"><strong>1ª Aula</strong><br>07:30 - 08:30</td>
-                                <td><div class="slot-reserved navy"><strong>Prof. André • Física</strong><br>Lab. Info 1 (3º A)</div></td>
-                                <td><div class="slot-empty">+ Reservar</div></td>
-                                <td><div class="slot-reserved green"><strong>Profª Carla • Bio</strong><br>Projetor 1</div></td>
-                                <td><div class="slot-empty">+ Reservar</div></td>
-                                <td><div class="slot-empty">+ Reservar</div></td>
-                            </tr>
-                            <tr>
-                                <td class="time-slot"><strong>2ª Aula</strong><br>08:30 - 09:30</td>
-                                <td><div class="slot-reserved blue"><strong>Sua Reserva (Profª Ana)</strong><br>Lab 1 • Mat. Comp.</div></td>
-                                <td><div class="slot-reserved dark"><strong>Prof. Marcos</strong><br>Lab. Info 2</div></td>
-                                <td><div class="slot-empty">+ Reservar</div></td>
-                                <td><div class="slot-empty">+ Reservar</div></td>
-                                <td><div class="slot-empty">+ Reservar</div></td>
-                            </tr>
-                            <tr class="break-row">
-                                <td colspan="6">INTERVALO / RECREIO (09:30 - 09:50)</td>
-                            </tr>
-                            <tr>
-                                <td class="time-slot"><strong>3ª Aula</strong><br>09:50 - 10:50</td>
-                                <td><div class="slot-empty highlight">+ Clique para Agendar</div></td>
-                                <td><div class="slot-empty">+ Reservar</div></td>
-                                <td><div class="slot-empty">+ Reservar</div></td>
-                                <td><div class="slot-empty">+ Reservar</div></td>
-                                <td><div class="slot-empty">+ Reservar</div></td>
-                            </tr>
-                            <tr>
-                                <td class="time-slot"><strong>4ª Aula</strong><br>10:50 - 11:50</td>
-                                <td><div class="slot-empty">+ Reservar</div></td>
-                                <td><div class="slot-empty">+ Reservar</div></td>
-                                <td><div class="slot-empty">+ Reservar</div></td>
-                                <td><div class="slot-empty">+ Reservar</div></td>
-                                <td><div class="slot-empty">+ Reservar</div></td>
-                            </tr>
-                            <tr>
-                                <td class="time-slot"><strong>5ª Aula</strong><br>11:50 - 12:50</td>
-                                <td><div class="slot-empty">+ Reservar</div></td>
-                                <td><div class="slot-empty">+ Reservar</div></td>
-                                <td><div class="slot-empty">+ Reservar</div></td>
-                                <td><div class="slot-empty">+ Reservar</div></td>
-                                <td><div class="slot-empty">+ Reservar</div></td>
-                            </tr>
-                            <tr class="break-row">
-                                <td colspan="6">ALMOÇO (12:50 - 13:50)</td>
-                            </tr>
-                            <tr>
-                                <td class="time-slot"><strong>6ª Aula</strong><br>13:50 - 14:50</td>
-                                <td><div class="slot-empty">+ Reservar</div></td>
-                                <td><div class="slot-empty">+ Reservar</div></td>
-                                <td><div class="slot-empty">+ Reservar</div></td>
-                                <td><div class="slot-empty">+ Reservar</div></td>
-                                <td><div class="slot-empty">+ Reservar</div></td>
-                            </tr>
-                            <tr>
-                                <td class="time-slot"><strong>7ª Aula</strong><br>14:50 - 15:50</td>
-                                <td><div class="slot-empty">+ Reservar</div></td>
-                                <td><div class="slot-empty">+ Reservar</div></td>
-                                <td><div class="slot-empty">+ Reservar</div></td>
-                                <td><div class="slot-empty">+ Reservar</div></td>
-                                <td><div class="slot-empty">+ Reservar</div></td>
-                            </tr>
-                            <tr>
-                                <td class="time-slot"><strong>8ª Aula</strong><br>15:50 - 16:50</td>
-                                <td><div class="slot-empty">+ Reservar</div></td>
-                                <td><div class="slot-empty">+ Reservar</div></td>
-                                <td><div class="slot-empty">+ Reservar</div></td>
-                                <td><div class="slot-empty">+ Reservar</div></td>
-                                <td><div class="slot-empty">+ Reservar</div></td>
-                            </tr>
-                        </tbody>
+                        <tbody></tbody>
                     </table>
                 </div>
             </section>
@@ -242,7 +165,7 @@
                 <div class="form-row">
                     <div class="form-group">
                         <label for="data">Data</label>
-                        <input type="date" id="data" required value="2026-08-31">
+                        <input type="date" id="data" required>
                     </div>
                     <div class="form-group">
                         <label for="aula">Horário / Aula</label>

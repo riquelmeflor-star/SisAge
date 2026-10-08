@@ -357,7 +357,9 @@ body {
     font-size: 12px;
 }
 
+.week-label { min-width: 190px; text-align: center; }
 .btn-icon { background: none; border: none; font-weight: bold; cursor: pointer; }
+.week-today { color: var(--blue); }
 
 .table-container { overflow-x: auto; }
 
@@ -390,12 +392,16 @@ body {
 .slot-reserved.dark { background: var(--dark); }
 
 .slot-empty {
+    width: 100%;
     border: 1px dashed #CBD5E1;
     padding: 12px;
     border-radius: 6px;
     color: var(--text-muted);
+    background: #fff;
+    font: inherit;
     cursor: pointer;
 }
+.slot-empty:hover, .slot-empty:focus-visible { border-color: var(--blue); color: var(--blue); }
 .slot-empty.highlight { border-color: var(--blue); color: var(--blue); font-weight: bold; }
 
 .break-row td { background: #F1F5F9; font-weight: bold; color: var(--text-muted); }
