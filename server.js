@@ -4,6 +4,8 @@ const cors = require('cors');
 const bcryptjs = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const path = require('path');
+const https = require('https');
+const crypto = require('crypto');
 
 const app = express();
 const PORT = 3000;
@@ -12,14 +14,14 @@ const SECRET_KEY = 'seu_segredo_super_secreto_mude_isso';
 // Middleware
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'Biblioteca')));
+app.use(express.static(path.join(__dirname, 'Agendamentos')));
 
 // Pool de conexão MySQL
 const pool = mysql.createPool({
     host: 'localhost',
     user: 'root',
     password: '', // Ajuste conforme necessário
-    database: 'ceti_db',
+    database: 'ceti_agendamento',
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0
@@ -43,6 +45,111 @@ const verificarToken = (req, res, next) => {
 };
 
 // ==================== AUTENTICAÇÃO ====================
+
+app.get('/api/auth/google/config', (req, res) => {
+    if (!process.env.GOOGLE_CLIENT_ID) {
+        return res.status(503).json({ erro: 'Login Google não configurado' });
+    }
+
+    res.json({ clientId: process.env.GOOGLE_CLIENT_ID });
+});
+
+const verificarTokenGoogle = (idToken) => new Promise((resolve, reject) => {
+    const tokenInfoUrl = new URL('https://oauth2.googleapis.com/tokeninfo');
+    tokenInfoUrl.searchParams.set('id_token', idToken);
+
+    const request = https.get(tokenInfoUrl, (response) => {
+        let body = '';
+        response.setEncoding('utf8');
+        response.on('data', (chunk) => { body += chunk; });
+        response.on('end', () => {
+            if (response.statusCode !== 200) {
+                reject(new Error('Token Google inválido'));
+                return;
+            }
+
+            try {
+                const payload = JSON.parse(body);
+                const emissorValido = ['accounts.google.com', 'https://accounts.google.com'].includes(payload.iss);
+
+                if (
+                    payload.aud !== process.env.GOOGLE_CLIENT_ID ||
+                    !emissorValido ||
+                    ![true, 'true'].includes(payload.email_verified) ||
+                    !payload.email ||
+                    !payload.sub
+                ) {
+                    reject(new Error('Token Google inválido'));
+                    return;
+                }
+
+                resolve(payload);
+            } catch (error) {
+                reject(error);
+            }
+        });
+    });
+
+    request.setTimeout(5000, () => request.destroy(new Error('Tempo esgotado ao validar token Google')));
+    request.on('error', reject);
+});
+
+app.post('/api/auth/google', async (req, res) => {
+    const { credential } = req.body;
+
+    if (!process.env.GOOGLE_CLIENT_ID) {
+        return res.status(503).json({ erro: 'Login Google não configurado no servidor' });
+    }
+
+    if (!credential) {
+        return res.status(400).json({ erro: 'Credencial Google não fornecida' });
+    }
+
+    try {
+        const contaGoogle = await verificarTokenGoogle(credential);
+        const email = contaGoogle.email.toLowerCase();
+        const [usuarios] = await pool.query(
+            'SELECT id, nome, email, cargo FROM usuarios WHERE email = ?',
+            [email]
+        );
+
+        let usuario = usuarios[0];
+        if (!usuario) {
+            const nome = contaGoogle.name || email;
+            const senhaAleatoria = crypto.randomBytes(32).toString('hex');
+            const senhaHash = await bcryptjs.hash(senhaAleatoria, 10);
+            const [resultado] = await pool.query(
+                'INSERT INTO usuarios (nome, email, senha, cargo) VALUES (?, ?, ?, ?)',
+                [nome, email, senhaHash, 'docente']
+            );
+            usuario = { id: resultado.insertId, nome, email, cargo: 'docente' };
+        }
+
+        const token = jwt.sign(
+            { usuarioId: usuario.id, cargo: usuario.cargo },
+            SECRET_KEY,
+            { expiresIn: '24h' }
+        );
+
+        res.json({
+            sucesso: true,
+            token,
+            usuario: {
+                id: usuario.id,
+                nome: usuario.nome,
+                email: usuario.email,
+                cargo: usuario.cargo
+            }
+        });
+    } catch (error) {
+        if (error.message === 'Token Google inválido') {
+            return res.status(401).json({ erro: 'Não foi possível validar sua conta Google' });
+        }
+
+        console.error(error);
+        res.status(500).json({ erro: 'Erro ao processar login com Google' });
+    }
+});
 
 // Login
 app.post('/api/auth/login', async (req, res) => {
@@ -351,5 +458,5 @@ app.get('/api/relatorios/uso', verificarToken, async (req, res) => {
 
 app.listen(PORT, () => {
     console.log(`Servidor rodando em http://localhost:${PORT}`);
-    console.log('Certifique-se de que o MySQL está rodando com a base de dados "ceti_db"');
+    console.log('Certifique-se de que o MySQL está rodando com a base de dados "ceti_agendamento"');
 });

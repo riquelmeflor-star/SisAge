@@ -96,6 +96,37 @@
             text-decoration: none;
         }
 
+        .auth-divider {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin: 20px 0 16px;
+            color: var(--text-muted);
+            font-size: 12px;
+        }
+
+        .auth-divider::before,
+        .auth-divider::after {
+            content: '';
+            height: 1px;
+            flex: 1;
+            background: #dbe3ef;
+        }
+
+        #googleLoginButton {
+            display: flex;
+            justify-content: center;
+            min-height: 40px;
+        }
+
+        #googleLoginStatus {
+            min-height: 16px;
+            margin-top: 8px;
+            color: #a33;
+            font-size: 12px;
+            text-align: center;
+        }
+
         .small-text {
             font-size: 12px;
             text-align: center;
@@ -130,6 +161,9 @@
                     <a href="reset-password.html">Esqueci a senha</a>
                 </div>
             </form>
+            <div class="auth-divider">ou</div>
+            <div id="googleLoginButton" aria-label="Entrar com uma conta Google"></div>
+            <p id="googleLoginStatus" role="status" aria-live="polite"></p>
         </div>
     </div>
 

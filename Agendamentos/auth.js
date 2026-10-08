@@ -58,6 +58,7 @@ const setCurrentUser = (usuario) => {
 
 const clearCurrentUser = () => {
     localStorage.removeItem(SESSION_KEY);
+    localStorage.removeItem('cetiToken');
 };
 
 const redirectToLogin = () => {
@@ -125,6 +126,71 @@ const initLoginPage = () => {
         alert(`Bem-vindo(a), ${usuario.nome}!`);
         window.location.href = 'index.html';
     });
+
+    initGoogleLogin();
+};
+
+const initGoogleLogin = async () => {
+    const button = document.getElementById('googleLoginButton');
+    const status = document.getElementById('googleLoginStatus');
+    if (!button || !status) return;
+
+    try {
+        const configResponse = await fetch('/api/auth/google/config');
+        const config = await configResponse.json();
+        if (!configResponse.ok || !config.clientId) {
+            status.textContent = config.erro || 'Login Google indisponível.';
+            return;
+        }
+
+        const googleScript = document.createElement('script');
+        googleScript.src = 'https://accounts.google.com/gsi/client';
+        googleScript.async = true;
+        googleScript.defer = true;
+        googleScript.onload = () => {
+            if (!window.google?.accounts?.id) {
+                status.textContent = 'Não foi possível carregar o login Google.';
+                return;
+            }
+
+            window.google.accounts.id.initialize({
+                client_id: config.clientId,
+                callback: async ({ credential }) => {
+                    status.textContent = 'Entrando...';
+                    try {
+                        const response = await fetch('/api/auth/google', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ credential })
+                        });
+                        const result = await response.json();
+                        if (!response.ok) throw new Error(result.erro || 'Falha no login Google.');
+
+                        localStorage.setItem('cetiToken', result.token);
+                        setCurrentUser(result.usuario);
+                        window.location.href = 'index.html';
+                    } catch (error) {
+                        status.textContent = error.message;
+                    }
+                }
+            });
+
+            window.google.accounts.id.renderButton(button, {
+                type: 'standard',
+                theme: 'outline',
+                size: 'large',
+                text: 'continue_with',
+                shape: 'rectangular',
+                width: 320
+            });
+        };
+        googleScript.onerror = () => {
+            status.textContent = 'Não foi possível carregar o login Google.';
+        };
+        document.head.appendChild(googleScript);
+    } catch (error) {
+        status.textContent = 'Não foi possível conectar ao servidor de autenticação.';
+    }
 };
 
 const initRegisterPage = () => {

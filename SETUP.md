@@ -42,7 +42,19 @@ Instale as dependências:
 npm install
 ```
 
-### 3️⃣ Configurar variáveis de ambiente (Opcional)
+### 3️⃣ Configurar banco e login Google
+
+O servidor usa o banco `ceti_agendamento`, criado pelo script `Agendamentos/sql/sql.sql`.
+Para habilitar o login Google, crie um ID do cliente OAuth do tipo Aplicativo da Web no Google Cloud Console e cadastre `http://localhost:3000` como origem JavaScript autorizada. Configure a variável antes de iniciar o servidor:
+
+```powershell
+$env:GOOGLE_CLIENT_ID="seu-client-id.apps.googleusercontent.com"
+npm start
+```
+
+Para produção, cadastre também o domínio HTTPS da aplicação nas origens autorizadas e configure a mesma variável no ambiente do servidor.
+
+### 4️⃣ Configurar variáveis do MySQL
 
 Se necessário, edite o arquivo `server.js` e atualize as credenciais MySQL:
 
@@ -56,7 +68,7 @@ const pool = mysql.createPool({
 });
 ```
 
-### 4️⃣ Iniciar o servidor
+### 5️⃣ Iniciar o servidor
 
 ```bash
 npm start
@@ -105,7 +117,9 @@ Projeto Integrador G2/
 ## 🔌 API Endpoints
 
 ### Autenticação
-- `POST /api/auth/login` - Fazer login
+- `POST /api/auth/login` - Fazer login com e-mail e senha
+- `GET /api/auth/google/config` - Obter configuração pública do botão Google
+- `POST /api/auth/google` - Validar credencial Google e iniciar sessão
 - `POST /api/auth/register` - Registrar novo usuário
 - `POST /api/auth/reset-password` - Redefinir senha
 
