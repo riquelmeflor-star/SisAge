@@ -41,7 +41,7 @@
                 <a href="#" class="nav-item" id="btnOpenModalNav"><i class="fa-solid fa-calendar-plus"></i> Novo Agendamento</a>
                 <a href="#laboratorios" class="nav-item resource-filter" data-filter="laboratorio"><i class="fa-solid fa-desktop"></i> Laboratórios de Info</a>
                 <a href="#equipamentos" class="nav-item resource-filter" data-filter="equipamento"><i class="fa-solid fa-video"></i> Equipamentos</a>
-                <a href="#" class="nav-item"><i class="fa-solid fa-calendar-check"></i> Minhas Reservas</a>
+                <a href="#minhas-reservas" class="nav-item" id="btnMyReservations"><i class="fa-solid fa-calendar-check"></i> Minhas Reservas</a>
                 <a href="relatorios.html" class="nav-item"><i class="fa-solid fa-chart-line"></i> Relatórios de Uso</a>
             </nav>
             <div class="support-box">
@@ -108,6 +108,16 @@
                         <button class="btn-card-action success">Reservar Kit</button>
                         <button class="btn-card-action danger btn-remove-resource" type="button">Remover</button>
                     </div>
+                </div>
+            </section>
+
+            <section class="my-reservas-section hidden" id="minhas-reservas">
+                <div class="section-header">
+                    <h3>Minhas Reservas</h3>
+                    <span id="reservationsSummary">0 reservas</span>
+                </div>
+                <div class="reservations-list" id="reservationsList">
+                    <div class="empty-state">Você ainda não possui reservas.</div>
                 </div>
             </section>
 

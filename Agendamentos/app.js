@@ -29,7 +29,68 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const getResources = () => {
         try {
-            return JSON.parse(localStorage.getItem(RESOURCES_KEY) || '[]');
+            const recursos = JSON.parse(localStorage.getItem(RESOURCES_KEY) || '[]');
+
+            if (!Array.isArray(recursos) || recursos.length === 0) {
+                const defaultResources = [
+                    {
+                        id: 1,
+                        nome: 'Laboratório de Info 1',
+                        categoria: 'laboratorio',
+                        tipo: 'laboratorio',
+                        capacidade: 25,
+                        descricao: '25 PCs • Ar-condicionado • Projetor',
+                        status: 'disponivel',
+                        criadoEm: new Date().toISOString()
+                    },
+                    {
+                        id: 2,
+                        nome: 'Laboratório de Info 2',
+                        categoria: 'laboratorio',
+                        tipo: 'laboratorio',
+                        capacidade: 20,
+                        descricao: '20 PCs • Internet Fibra de Alta Velocidade',
+                        status: 'ocupado',
+                        criadoEm: new Date().toISOString()
+                    },
+                    {
+                        id: 3,
+                        nome: 'Kits de Projetor & Som',
+                        categoria: 'equipamento',
+                        tipo: 'equipamento',
+                        capacidade: 2,
+                        descricao: 'Epson HDMI + Caixa Amplificada Móvel',
+                        status: 'disponivel',
+                        criadoEm: new Date().toISOString()
+                    }
+                ];
+
+                saveResources(defaultResources);
+                return defaultResources;
+            }
+
+            const precisaNormalizar = recursos.some((recurso) => !recurso.categoria || !recurso.status || !recurso.tipo);
+
+            if (precisaNormalizar) {
+                const normalizedResources = recursos.map((recurso, index) => {
+                    const categoria = recurso.categoria || (/(lab|laborat|informatica|informática|computador)/i.test(recurso.nome) ? 'laboratorio' : 'equipamento');
+                    return {
+                        id: recurso.id || Date.now() + index,
+                        nome: recurso.nome || `Recurso ${index + 1}`,
+                        categoria,
+                        tipo: recurso.tipo || categoria,
+                        capacidade: Number(recurso.capacidade || 0),
+                        descricao: recurso.descricao || '',
+                        status: recurso.status || 'disponivel',
+                        criadoEm: recurso.criadoEm || new Date().toISOString()
+                    };
+                });
+
+                saveResources(normalizedResources);
+                return normalizedResources;
+            }
+
+            return recursos;
         } catch (error) {
             return [];
         }
@@ -66,6 +127,57 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.btn-remove-resource').forEach((button) => {
             button.style.display = allowed ? 'inline-block' : 'none';
         });
+    };
+
+    const getReservationStatusLabel = (status) => {
+        switch (status) {
+            case 'pendente':
+                return 'Pendente';
+            case 'cancelada':
+                return 'Cancelada';
+            default:
+                return 'Confirmada';
+        }
+    };
+
+    const renderMyReservations = () => {
+        const currentUser = getCurrentUser();
+        const list = document.getElementById('reservationsList');
+        const summary = document.getElementById('reservationsSummary');
+        const section = document.getElementById('minhas-reservas');
+
+        if (!list || !summary || !section) return;
+
+        const reservas = getReservations().filter((reserva) => {
+            if (!currentUser) return false;
+            return reserva.professor === currentUser.nome || reserva.usuarioEmail === currentUser.email;
+        });
+
+        summary.textContent = `${reservas.length} reserva${reservas.length === 1 ? '' : 's'}`;
+
+        if (!reservas.length) {
+            list.innerHTML = '<div class="empty-state">Você ainda não possui reservas.</div>';
+            return;
+        }
+
+        list.innerHTML = reservas
+            .slice()
+            .sort((a, b) => new Date(b.data) - new Date(a.data))
+            .map((reserva) => `
+                <article class="reservation-card">
+                    <div class="reservation-main">
+                        <span class="reservation-tag">${reserva.recursoNome || reserva.recurso || 'Recurso'}</span>
+                        <h4>${reserva.disciplina || 'Sem disciplina'}</h4>
+                        <p>${reserva.data} • ${reserva.aulaNome || reserva.aula || 'Aula'} • ${reserva.horario || ''}</p>
+                        <small>Turma ${reserva.turma || '—'} • Professor: ${reserva.professor || '—'}</small>
+                    </div>
+                    <div class="reservation-actions">
+                        <span class="badge-status ${reserva.status || 'confirmada'}">${getReservationStatusLabel(reserva.status)}</span>
+                        <button class="btn-card-action secondary btn-cancel-reservation" type="button" data-id="${reserva.id}">Cancelar</button>
+                    </div>
+                </article>
+            `)
+            .join('');
     };
 
     const createResourceCard = (id, title, description, iconClass, badgeClass, badgeText, category) => {
@@ -164,6 +276,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const renderResources = () => {
         const recursos = getResources();
+
+        if (!resourcesGrid) return;
+
+        resourcesGrid.innerHTML = '';
 
         // Atualizar select de recursos
         if (recursoSelect) {
@@ -275,19 +391,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 recursos.push(novoRecurso);
                 saveResources(recursos);
 
-                const badgeText = status === 'disponivel' ? 'Disponível' : status === 'manutencao' ? 'Manutenção' : 'Indisponível';
-                const badgeClass = status === 'disponivel' ? 'available' : 'occupied';
-                const iconClass = category === 'laboratorio' ? 'blue' : 'green';
-                const card = createResourceCard(novoRecurso.id, name, description || '', iconClass, badgeClass, badgeText, category);
-
-                resourcesGrid.appendChild(card);
-                
-                // Evento de reservar
-                card.querySelector('.btn-card-action.primary').addEventListener('click', () => {
-                    recursoSelect.value = novoRecurso.id;
-                    openModal();
-                });
-
                 resourceForm.reset();
                 closeResourceModal();
                 renderResources();
@@ -297,6 +400,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     document.addEventListener('click', (event) => {
+        const cancelButton = event.target.closest('.btn-cancel-reservation');
+        if (cancelButton) {
+            const id = cancelButton.dataset.id;
+            const reservas = getReservations().filter((reserva) => String(reserva.id) !== String(id));
+            saveReservations(reservas);
+            renderMyReservations();
+            alert('Reserva cancelada com sucesso!');
+            return;
+        }
+
         if (event.target.classList.contains('btn-remove-resource')) {
             const id = event.target.dataset.id;
             if (!confirm('Tem certeza que deseja remover este recurso?')) {
@@ -322,6 +435,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    const sectionMinhasReservas = document.getElementById('minhas-reservas');
+    const sectionSchedule = document.querySelector('.schedule-section');
+
     if (btnOpenModal) {
         btnOpenModal.addEventListener('click', openModal);
     }
@@ -333,12 +449,45 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    const showDashboardResources = () => {
+        if (resourcesGrid) {
+            resourcesGrid.style.display = 'grid';
+        }
+        if (sectionSchedule) {
+            sectionSchedule.style.display = 'block';
+        }
+        if (sectionMinhasReservas) {
+            sectionMinhasReservas.classList.add('hidden');
+        }
+    };
+
+    const btnMyReservations = document.getElementById('btnMyReservations');
+    if (btnMyReservations) {
+        btnMyReservations.addEventListener('click', (event) => {
+            event.preventDefault();
+            renderMyReservations();
+            if (resourcesGrid) {
+                resourcesGrid.style.display = 'none';
+            }
+            if (sectionSchedule) {
+                sectionSchedule.style.display = 'none';
+            }
+            if (sectionMinhasReservas) {
+                sectionMinhasReservas.classList.remove('hidden');
+            }
+            document.querySelectorAll('.nav-item').forEach((item) => {
+                item.classList.toggle('active', item === btnMyReservations);
+            });
+        });
+    }
+
     resourceFilters.forEach((filterLink) => {
         filterLink.addEventListener('click', (event) => {
             event.preventDefault();
             const category = filterLink.dataset.filter;
+            showDashboardResources();
             filterCards(category);
-            document.querySelectorAll('.resource-filter').forEach((item) => {
+            document.querySelectorAll('.nav-item').forEach((item) => {
                 item.classList.toggle('active', item === filterLink);
             });
         });
@@ -390,15 +539,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const recursoNome = recursoSelect.options[recursoSelect.selectedIndex].text;
             const aulaTexto = aulaSelect.options[aulaSelect.selectedIndex].text;
+            const horario = aulaTexto.match(/\(([^)]+)\)/);
+            const usuarioAtual = getCurrentUser();
 
             const novaReserva = {
                 id: Date.now(),
                 recursoId,
                 recursoNome,
+                professor: usuarioAtual ? usuarioAtual.nome : '',
+                usuarioEmail: usuarioAtual ? usuarioAtual.email : '',
                 disciplina,
                 turma,
                 data,
                 aula,
+                aulaNome: aulaTexto.split(' (')[0],
+                horario: horario ? horario[1] : '',
                 status: 'confirmada',
                 criadoEm: new Date().toISOString()
             };
@@ -417,8 +572,11 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             closeModal();
+            renderMyReservations();
         });
     }
 
     renderResources();
+    renderMyReservations();
+    showDashboardResources();
 });

@@ -1,5 +1,15 @@
 const REPORTS_KEY = 'cetiReservas';
 const RECURSOS_KEY = 'cetiRecursos';
+const DETALHES_AULAS = {
+    1: { nome: '1ª Aula', horario: '07:30 - 08:30' },
+    2: { nome: '2ª Aula', horario: '08:30 - 09:30' },
+    3: { nome: '3ª Aula', horario: '09:50 - 10:50' },
+    4: { nome: '4ª Aula', horario: '10:50 - 11:50' },
+    5: { nome: '5ª Aula', horario: '11:50 - 12:50' },
+    6: { nome: '6ª Aula', horario: '13:50 - 14:50' },
+    7: { nome: '7ª Aula', horario: '14:50 - 15:50' },
+    8: { nome: '8ª Aula', horario: '15:50 - 16:50' }
+};
 
 const getStoredReservations = () => {
     try {
@@ -57,6 +67,31 @@ const formatarData = (dataString) => {
     return data.toLocaleDateString('pt-BR');
 };
 
+const escaparHtml = (valor) => String(valor).replace(/[&<>"']/g, (caractere) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+}[caractere]));
+
+const obterDetalhesReserva = (reserva, recursos, professorAtual) => {
+    const recursoCadastrado = recursos.find((item) => String(item.id) === String(reserva.recursoId));
+    const aulaSalva = reserva.aula;
+    const detalhesAula = DETALHES_AULAS[Number(aulaSalva)];
+    const horarioDaAula = typeof aulaSalva === 'string' ? aulaSalva.match(/\(([^)]+)\)/) : null;
+
+    return {
+        recurso: reserva.recurso || reserva.recursoNome || recursoCadastrado?.nome || '—',
+        disciplina: reserva.disciplina || '—',
+        professor: reserva.professor || professorAtual || 'Não informado',
+        data: formatarData(reserva.data),
+        aula: reserva.aulaNome || detalhesAula?.nome || aulaSalva || '—',
+        horario: reserva.horario || horarioDaAula?.[1] || detalhesAula?.horario || '—',
+        status: reserva.status || '—'
+    };
+};
+
 const exportarRelatorioPdf = () => {
     if (!window.jspdf || !window.jspdf.jsPDF) {
         alert('A biblioteca de PDF não foi carregada. Verifique a conexão ou recarregue a página.');
@@ -112,6 +147,8 @@ const renderReport = () => {
     const periodo = filtro ? Number(filtro.value) : 30;
     const reservas = getStoredReservations();
     const recursos = getStoredResources();
+    const usuarioAtual = getCurrentUser();
+    const professorAtual = usuarioAtual ? usuarioAtual.nome : '';
     const hoje = new Date();
     const inicio = new Date();
     inicio.setDate(hoje.getDate() - periodo);
@@ -139,22 +176,25 @@ const renderReport = () => {
     if (!reportBody) return;
 
     if (!reservasFiltradas.length) {
-        reportBody.innerHTML = '<tr><td colspan="5" class="empty-state">Nenhuma reserva encontrada para este período.</td></tr>';
+        reportBody.innerHTML = '<tr><td colspan="7" class="empty-state">Nenhuma reserva encontrada para este período.</td></tr>';
         return;
     }
 
     reportBody.innerHTML = reservasFiltradas
-        .map((reserva) => `
+        .map((reserva) => {
+            const detalhes = obterDetalhesReserva(reserva, recursos, professorAtual);
+            return `
             <tr>
-                <td>${reserva.recurso}</td>
-                <td>${reserva.disciplina}</td>
-                <td>${reserva.professor}</td>
-                <td>${formatarData(reserva.data)}</td>
-                <td>${reserva.aula || '—'}</td>
-                <td>${reserva.horario || '—'}</td>
-                <td><span class="badge-status ${reserva.status}">${reserva.status}</span></td>
+                <td>${escaparHtml(detalhes.recurso)}</td>
+                <td>${escaparHtml(detalhes.disciplina)}</td>
+                <td>${escaparHtml(detalhes.professor)}</td>
+                <td>${escaparHtml(detalhes.data)}</td>
+                <td>${escaparHtml(detalhes.aula)}</td>
+                <td>${escaparHtml(detalhes.horario)}</td>
+                <td><span class="badge-status ${escaparHtml(detalhes.status)}">${escaparHtml(detalhes.status)}</span></td>
             </tr>
-        `)
+        `;
+        })
         .join('');
 };
 
