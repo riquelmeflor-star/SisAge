@@ -24,6 +24,32 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnAddLab = document.getElementById('btnAddLab');
     const btnAddEquipment = document.getElementById('btnAddEquipment');
     const managementRoles = ['coordenador', 'admin'];
+    const themeToggle = document.getElementById('btnThemeToggle');
+
+    const applyTheme = (isDark, savePreference = false) => {
+        document.body.classList.toggle('dark-mode', isDark);
+        if (!themeToggle) return;
+
+        const icon = themeToggle.querySelector('i');
+        const label = isDark ? 'Ativar modo claro' : 'Ativar modo noturno';
+        if (icon) icon.className = isDark ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
+        themeToggle.setAttribute('aria-pressed', String(isDark));
+        themeToggle.setAttribute('aria-label', label);
+        themeToggle.title = label;
+
+        if (savePreference) {
+            localStorage.setItem('cetiTema', isDark ? 'noturno' : 'claro');
+        }
+    };
+
+    if (themeToggle) {
+        const savedTheme = localStorage.getItem('cetiTema');
+        const prefersDark = savedTheme === null && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        applyTheme(savedTheme === 'noturno' || prefersDark);
+        themeToggle.addEventListener('click', () => {
+            applyTheme(!document.body.classList.contains('dark-mode'), true);
+        });
+    }
 
     const getDateKey = (date) => [
         date.getFullYear(),

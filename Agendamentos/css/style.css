@@ -84,6 +84,24 @@ body {
     gap: 12px;
 }
 
+.theme-toggle {
+    width: 36px;
+    height: 36px;
+    display: grid;
+    place-items: center;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    border-radius: 50%;
+    background: transparent;
+    color: #fff;
+    font-size: 15px;
+    cursor: pointer;
+}
+
+.theme-toggle:hover,
+.theme-toggle:focus-visible {
+    background: rgba(255, 255, 255, 0.14);
+}
+
 .avatar {
     background: var(--blue);
     width: 36px;
@@ -604,6 +622,87 @@ textarea {
     padding: 20px;
     text-align: center;
     color: var(--text-muted);
+}
+
+body.dark-mode {
+    --bg-light: #111827;
+    --dark: #E5E7EB;
+    --gray-border: #374151;
+    --text-muted: #9CA3AF;
+    color-scheme: dark;
+}
+
+.dark-mode .sidebar,
+.dark-mode .my-reservas-section,
+.dark-mode .card,
+.dark-mode .schedule-section,
+.dark-mode .modal {
+    background: #1F2937;
+    color: #E5E7EB;
+}
+
+.dark-mode .nav-item.active,
+.dark-mode .nav-item:hover {
+    background: #263B55;
+    color: #93C5FD;
+}
+
+.dark-mode .support-box,
+.dark-mode .reservation-card,
+.dark-mode .slot-empty,
+.dark-mode .btn-card-action.secondary {
+    background: #111827;
+    color: #E5E7EB;
+}
+
+.dark-mode .support-box h4,
+.dark-mode .content-header h2,
+.dark-mode .section-header h3,
+.dark-mode .reservation-main h4 {
+    color: #E5E7EB;
+}
+
+.dark-mode .reservation-tag,
+.dark-mode .card-icon.blue,
+.dark-mode .card-icon.red,
+.dark-mode .card-icon.green {
+    background: #263B55;
+    color: #BFDBFE;
+}
+
+.dark-mode .card-footer {
+    border-top-color: #374151;
+}
+
+.dark-mode .week-picker {
+    border-color: #4B5563;
+}
+
+.dark-mode .schedule-table th {
+    background: #263241;
+    color: #E5E7EB;
+}
+
+.dark-mode .schedule-table th.active-day {
+    background: #263B55;
+    color: #93C5FD;
+}
+
+.dark-mode .break-row td {
+    background: #111827;
+}
+
+.dark-mode .form-group input,
+.dark-mode .form-group select,
+.dark-mode textarea {
+    border-color: #4B5563;
+    background: #111827;
+    color: #E5E7EB;
+}
+
+.dark-mode .btn-secondary {
+    background: #374151;
+    color: #E5E7EB;
 }
 
 @media (max-width: 768px) {
