@@ -203,6 +203,31 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
     }
 
+    const themeToggle = document.getElementById('btnThemeToggle');
+    if (themeToggle) {
+        const applyTheme = (isDark, savePreference = false) => {
+            document.body.classList.toggle('dark-mode', isDark);
+
+            const icon = themeToggle.querySelector('i');
+            const label = isDark ? 'Ativar modo claro' : 'Ativar modo noturno';
+            if (icon) icon.className = isDark ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
+            themeToggle.setAttribute('aria-pressed', String(isDark));
+            themeToggle.setAttribute('aria-label', label);
+            themeToggle.title = label;
+
+            if (savePreference) {
+                localStorage.setItem('cetiTema', isDark ? 'noturno' : 'claro');
+            }
+        };
+
+        const savedTheme = localStorage.getItem('cetiTema');
+        const prefersDark = savedTheme === null && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        applyTheme(savedTheme === 'noturno' || prefersDark);
+        themeToggle.addEventListener('click', () => {
+            applyTheme(!document.body.classList.contains('dark-mode'), true);
+        });
+    }
+
     const filtro = document.getElementById('filtroPeriodo');
     if (filtro) {
         filtro.addEventListener('change', renderReport);
