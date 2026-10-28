@@ -96,8 +96,8 @@ const renderUserProfile = () => {
         if (initialsElement) initialsElement.textContent = initials;
 
         userAvatar.hidden = false;
-        userAvatar.setAttribute('aria-label', 'Visualizar ou alterar foto do perfil');
-        userAvatar.title = 'Visualizar ou alterar foto do perfil';
+        userAvatar.setAttribute('aria-label', 'Visualizar ou editar foto do perfil');
+        userAvatar.title = 'Visualizar ou editar foto do perfil';
 
         const photo = localStorage.getItem(`${PROFILE_PHOTO_KEY_PREFIX}${user.email.toLowerCase()}`);
         userAvatar.style.backgroundImage = photo ? `url("${photo}")` : '';
@@ -124,10 +124,32 @@ const initProfilePhotoUpload = () => {
                 </div>
                 <div class="modal-body profile-photo-body">
                     <div id="profilePhotoPreview" class="profile-photo-preview" aria-label="Foto do perfil"></div>
-                    <div class="modal-footer">
+                    <div id="profilePhotoEditor" class="profile-photo-editor" hidden>
+                        <canvas id="profilePhotoCropCanvas" width="400" height="400" aria-label="Prévia do enquadramento"></canvas>
+                        <div class="crop-control">
+                            <label for="profilePhotoZoom">Zoom</label>
+                            <input id="profilePhotoZoom" type="range" min="1" max="3" step="0.01" value="1">
+                        </div>
+                        <div class="crop-control">
+                            <label for="profilePhotoPositionX">Posição horizontal</label>
+                            <input id="profilePhotoPositionX" type="range" min="-100" max="100" step="1" value="0">
+                        </div>
+                        <div class="crop-control">
+                            <label for="profilePhotoPositionY">Posição vertical</label>
+                            <input id="profilePhotoPositionY" type="range" min="-100" max="100" step="1" value="0">
+                        </div>
+                        <div class="modal-footer profile-photo-actions">
+                            <button type="button" class="btn-secondary" id="btnCancelProfilePhotoCrop">Cancelar</button>
+                            <button type="button" class="btn-primary" id="btnSaveProfilePhotoCrop">Salvar enquadramento</button>
+                        </div>
+                    </div>
+                    <div class="modal-footer profile-photo-actions" id="profilePhotoActions">
                         <button type="button" class="btn-secondary" id="btnCloseProfilePhotoFooter">Fechar</button>
+                        <button type="button" class="btn-danger" id="btnRemoveProfilePhoto">
+                            <i class="fa-solid fa-trash" aria-hidden="true"></i> Remover foto
+                        </button>
                         <button type="button" class="btn-primary" id="btnChangeProfilePhoto">
-                            <i class="fa-solid fa-camera" aria-hidden="true"></i> Alterar foto
+                            <i class="fa-solid fa-pen" aria-hidden="true"></i> Editar foto
                         </button>
                     </div>
                 </div>
@@ -136,7 +158,58 @@ const initProfilePhotoUpload = () => {
     }
 
     const preview = document.getElementById('profilePhotoPreview');
+    const editor = document.getElementById('profilePhotoEditor');
+    const actions = document.getElementById('profilePhotoActions');
+    const canvas = document.getElementById('profilePhotoCropCanvas');
+    const zoomInput = document.getElementById('profilePhotoZoom');
+    const positionXInput = document.getElementById('profilePhotoPositionX');
+    const positionYInput = document.getElementById('profilePhotoPositionY');
+    let cropImage = null;
+    let dragging = false;
+    let dragStartX = 0;
+    let dragStartY = 0;
+    let dragPositionX = 0;
+    let dragPositionY = 0;
+
+    const drawCrop = () => {
+        if (!cropImage || !canvas) return;
+        const context = canvas.getContext('2d');
+        const size = canvas.width;
+        context.clearRect(0, 0, size, size);
+        const zoom = Number(zoomInput.value);
+        const baseScale = Math.max(size / cropImage.naturalWidth, size / cropImage.naturalHeight);
+        const scale = baseScale * zoom;
+        const width = cropImage.naturalWidth * scale;
+        const height = cropImage.naturalHeight * scale;
+        const positionX = Number(positionXInput.value) / 100;
+        const positionY = Number(positionYInput.value) / 100;
+        const x = (size - width) / 2 + (size - width) * positionX;
+        const y = (size - height) / 2 + (size - height) * positionY;
+        context.drawImage(cropImage, x, y, width, height);
+    };
+
+    const openCropEditor = (imageUrl) => {
+        cropImage = new Image();
+        cropImage.onload = () => {
+            zoomInput.value = '1';
+            positionXInput.value = '0';
+            positionYInput.value = '0';
+            preview.hidden = true;
+            actions.hidden = true;
+            editor.hidden = false;
+            drawCrop();
+        };
+        cropImage.src = imageUrl;
+    };
+
+    const closeCropEditor = () => {
+        editor.hidden = true;
+        preview.hidden = false;
+        actions.hidden = false;
+    };
+
     const openModal = () => {
+        if (!editor.hidden) closeCropEditor();
         const photo = localStorage.getItem(`${PROFILE_PHOTO_KEY_PREFIX}${user.email.toLowerCase()}`);
         preview.style.backgroundImage = '';
         preview.textContent = '';
@@ -152,16 +225,72 @@ const initProfilePhotoUpload = () => {
                 .join('');
         }
 
+        document.getElementById('btnRemoveProfilePhoto').hidden = !photo;
         modal.classList.add('active');
         document.getElementById('btnCloseProfilePhoto').focus();
     };
-    const closeModal = () => modal.classList.remove('active');
+    const closeModal = () => {
+        if (!editor.hidden) closeCropEditor();
+        modal.classList.remove('active');
+    };
 
     button.setAttribute('aria-haspopup', 'dialog');
     button.addEventListener('click', openModal);
+    [zoomInput, positionXInput, positionYInput].forEach((control) => control.addEventListener('input', drawCrop));
+
+    canvas.addEventListener('pointerdown', (event) => {
+        dragging = true;
+        dragStartX = event.clientX;
+        dragStartY = event.clientY;
+        dragPositionX = Number(positionXInput.value);
+        dragPositionY = Number(positionYInput.value);
+        canvas.setPointerCapture(event.pointerId);
+    });
+    canvas.addEventListener('pointermove', (event) => {
+        if (!dragging) return;
+        positionXInput.value = String(Math.max(-100, Math.min(100, dragPositionX + (event.clientX - dragStartX) / 2)));
+        positionYInput.value = String(Math.max(-100, Math.min(100, dragPositionY + (event.clientY - dragStartY) / 2)));
+        drawCrop();
+    });
+    canvas.addEventListener('pointerup', () => { dragging = false; });
+
+    document.getElementById('btnCancelProfilePhotoCrop').addEventListener('click', closeCropEditor);
+    document.getElementById('btnSaveProfilePhotoCrop').addEventListener('click', () => {
+        try {
+            const outputCanvas = document.createElement('canvas');
+            outputCanvas.width = 500;
+            outputCanvas.height = 500;
+            outputCanvas.getContext('2d').drawImage(canvas, 0, 0, 500, 500);
+            const croppedPhoto = outputCanvas.toDataURL('image/jpeg', 0.9);
+            localStorage.setItem(`${PROFILE_PHOTO_KEY_PREFIX}${user.email.toLowerCase()}`, croppedPhoto);
+            renderUserProfile();
+            preview.classList.add('has-photo');
+            preview.style.backgroundImage = `url("${croppedPhoto}")`;
+            preview.textContent = '';
+            document.getElementById('btnRemoveProfilePhoto').hidden = false;
+            closeCropEditor();
+        } catch (error) {
+            console.error('Erro ao salvar enquadramento:', error);
+            alert('Não foi possível salvar o enquadramento da foto.');
+        }
+    });
     document.getElementById('btnCloseProfilePhoto').addEventListener('click', closeModal);
     document.getElementById('btnCloseProfilePhotoFooter').addEventListener('click', closeModal);
     document.getElementById('btnChangeProfilePhoto').addEventListener('click', () => input.click());
+    document.getElementById('btnRemoveProfilePhoto').addEventListener('click', () => {
+        localStorage.removeItem(`${PROFILE_PHOTO_KEY_PREFIX}${user.email.toLowerCase()}`);
+        renderUserProfile();
+
+        const initials = user.nome
+            .split(' ')
+            .slice(0, 2)
+            .map((parte) => parte.charAt(0).toUpperCase())
+            .join('');
+        preview.classList.remove('has-photo');
+        preview.style.backgroundImage = '';
+        preview.textContent = initials;
+        document.getElementById('btnRemoveProfilePhoto').hidden = true;
+    });
     modal.addEventListener('click', (event) => {
         if (event.target === modal) closeModal();
     });
@@ -191,21 +320,7 @@ const initProfilePhotoUpload = () => {
                 return;
             }
 
-            try {
-                localStorage.setItem(
-                    `${PROFILE_PHOTO_KEY_PREFIX}${user.email.toLowerCase()}`,
-                    reader.result
-                );
-                renderUserProfile();
-                if (preview) {
-                    preview.textContent = '';
-                    preview.classList.add('has-photo');
-                    preview.style.backgroundImage = `url("${reader.result}")`;
-                }
-            } catch (error) {
-                console.error('Erro ao salvar foto do perfil:', error);
-                alert('Não foi possível salvar a foto neste navegador. Escolha um arquivo menor.');
-            }
+            openCropEditor(reader.result);
         };
         reader.onerror = () => {
             alert('Não foi possível ler a foto. Tente outro arquivo.');

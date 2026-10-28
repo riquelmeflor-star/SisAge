@@ -534,7 +534,38 @@ body {
     font-weight: 700;
 }
 .profile-photo-preview.has-photo { border: 4px solid var(--gray-border); }
-.profile-photo-body .modal-footer { width: 100%; }
+..profile-photo-body .modal-footer { width: 100%; }
+.profile-photo-actions { flex-wrap: wrap; }
+.profile-photo-editor {
+    width: 280px;
+    max-width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.profile-photo-editor[hidden] { display: none; }
+.profile-photo-editor canvas {
+    width: 280px;
+    height: 280px;
+    max-width: 100%;
+    border-radius: 50%;
+    background: #e2e8f0;
+    cursor: move;
+    touch-action: none;
+}
+.crop-control { display: flex; flex-direction: column; gap: 5px; }
+.crop-control label { font-size: 12px; font-weight: 600; }
+.crop-control input { width: 100%; }
+.profile-photo-actions .btn-danger {
+    border: none;
+    border-radius: 6px;
+    padding: 8px 16px;
+    background: #dc2626;
+    color: #fff;
+    cursor: pointer;
+}
+.profile-photo-actions .btn-danger[hidden] { display: none; }
+.profile-photo-actions .btn-danger:hover { background: #b91c1c; }
 
 .admin-tools {
     display: none;
