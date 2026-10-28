@@ -25,6 +25,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnAddEquipment = document.getElementById('btnAddEquipment');
     const managementRoles = ['coordenador', 'admin'];
     const themeToggle = document.getElementById('btnThemeToggle');
+    const bookingModalTitle = modal ? modal.querySelector('.modal-header h3') : null;
+    const bookingSubmitButton = bookingForm ? bookingForm.querySelector('button[type="submit"]') : null;
+    let reservationEditingId = null;
 
     const applyTheme = (isDark, savePreference = false) => {
         document.body.classList.toggle('dark-mode', isDark);
@@ -119,7 +122,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     String(reserva.aula) === aula.id
                 );
                 if (!reservas.length) {
-                    return `<td><button class="slot-empty" type="button" data-slot-date="${key}" data-slot-aula="${aula.id}">+ Reservar</button></td>`;
+                    const canBookDate = canReserveDate(key);
+                    return `<td><button class="slot-empty" type="button" data-slot-date="${key}" data-slot-aula="${aula.id}"${canBookDate ? '' : ' disabled title="Docentes podem reservar apenas hoje e amanhã"'}>${canBookDate ? '+ Reservar' : 'Bloqueado'}</button></td>`;
                 }
 
                 const blocos = reservas.map((reserva) => `
@@ -146,6 +150,7 @@ document.addEventListener('DOMContentLoaded', () => {
         today = currentDate;
         weekStart = getMonday(new Date());
         if (dataInput && dataInput.value === previousDate) dataInput.value = today;
+        updateBookingDateLimits();
         renderSchedule();
     };
 
@@ -244,6 +249,29 @@ document.addEventListener('DOMContentLoaded', () => {
         return Boolean(usuarioAtual && managementRoles.includes(usuarioAtual.cargo));
     };
 
+    const canReserveDate = (date) => {
+        if (userHasManagementAccess()) return true;
+
+        const nextDay = new Date();
+        nextDay.setDate(nextDay.getDate() + 1);
+        return date >= getDateKey(new Date()) && date <= getDateKey(nextDay);
+    };
+
+    const updateBookingDateLimits = () => {
+        if (!dataInput) return;
+
+        if (userHasManagementAccess()) {
+            dataInput.removeAttribute('min');
+            dataInput.removeAttribute('max');
+            return;
+        }
+
+        const nextDay = new Date();
+        nextDay.setDate(nextDay.getDate() + 1);
+        dataInput.min = getDateKey(new Date());
+        dataInput.max = getDateKey(nextDay);
+    };
+
     const toggleManagementControls = () => {
         const allowed = userHasManagementAccess();
         if (adminTools) {
@@ -270,18 +298,23 @@ document.addEventListener('DOMContentLoaded', () => {
         const list = document.getElementById('reservationsList');
         const summary = document.getElementById('reservationsSummary');
         const section = document.getElementById('minhas-reservas');
+        const title = document.getElementById('reservationsTitle');
+        const navLabel = document.getElementById('reservationsNavLabel');
+        const canManageReservations = userHasManagementAccess();
 
         if (!list || !summary || !section) return;
 
-        const reservas = getReservations().filter((reserva) => {
-            if (!currentUser) return false;
-            return reserva.professor === currentUser.nome || reserva.usuarioEmail === currentUser.email;
-        });
+        if (title) title.textContent = canManageReservations ? 'Gerenciar Agendamentos' : 'Minhas Reservas';
+        if (navLabel) navLabel.textContent = canManageReservations ? 'Gerenciar Agendamentos' : 'Minhas Reservas';
+
+        const reservas = getReservations().filter((reserva) => canManageReservations || (
+            currentUser && (reserva.professor === currentUser.nome || reserva.usuarioEmail === currentUser.email)
+        ));
 
         summary.textContent = `${reservas.length} reserva${reservas.length === 1 ? '' : 's'}`;
 
         if (!reservas.length) {
-            list.innerHTML = '<div class="empty-state">Você ainda não possui reservas.</div>';
+            list.innerHTML = `<div class="empty-state">${canManageReservations ? 'Ainda não há agendamentos cadastrados.' : 'Você ainda não possui reservas.'}</div>`;
             return;
         }
 
@@ -291,14 +324,15 @@ document.addEventListener('DOMContentLoaded', () => {
             .map((reserva) => `
                 <article class="reservation-card">
                     <div class="reservation-main">
-                        <span class="reservation-tag">${reserva.recursoNome || reserva.recurso || 'Recurso'}</span>
-                        <h4>${reserva.disciplina || 'Sem disciplina'}</h4>
-                        <p>${reserva.data} • ${reserva.aulaNome || reserva.aula || 'Aula'} • ${reserva.horario || ''}</p>
-                        <small>Turma ${reserva.turma || '—'} • Professor: ${reserva.professor || '—'}</small>
+                        <span class="reservation-tag">${escapeHTML(reserva.recursoNome || reserva.recurso || 'Recurso')}</span>
+                        <h4>${escapeHTML(reserva.disciplina || 'Sem disciplina')}</h4>
+                        <p>${escapeHTML(reserva.data)} • ${escapeHTML(reserva.aulaNome || reserva.aula || 'Aula')} • ${escapeHTML(reserva.horario || '')}</p>
+                        <small>Turma ${escapeHTML(reserva.turma || '—')} • Professor: ${escapeHTML(reserva.professor || '—')}</small>
                     </div>
                     <div class="reservation-actions">
-                        <span class="badge-status ${reserva.status || 'confirmada'}">${getReservationStatusLabel(reserva.status)}</span>
-                        <button class="btn-card-action secondary btn-cancel-reservation" type="button" data-id="${reserva.id}">Cancelar</button>
+                        <span class="badge-status ${escapeHTML(reserva.status || 'confirmada')}">${getReservationStatusLabel(reserva.status)}</span>
+                        ${canManageReservations ? `<button class="btn-card-action secondary btn-edit-reservation" type="button" data-id="${escapeHTML(reserva.id)}"><i class="fa-solid fa-pen"></i> Editar</button>` : ''}
+                        <button class="btn-card-action secondary btn-cancel-reservation" type="button" data-id="${escapeHTML(reserva.id)}">Cancelar</button>
                     </div>
                 </article>
             `)
@@ -379,13 +413,43 @@ document.addEventListener('DOMContentLoaded', () => {
         openResourceModal(category);
     };
 
-    const openModal = () => {
+    const openModal = (reservationId = null) => {
+        reservationEditingId = reservationId;
+        updateBookingDateLimits();
+        if (reservationId) {
+            if (!userHasManagementAccess()) {
+                alert('Apenas coordenadores e administradores podem editar agendamentos.');
+                return;
+            }
+
+            const reserva = getReservations().find((item) => String(item.id) === String(reservationId));
+            if (!reserva) {
+                alert('Agendamento não encontrado.');
+                return;
+            }
+
+            if (recursoSelect) recursoSelect.value = reserva.recursoId;
+            if (dataInput) dataInput.value = String(reserva.data).slice(0, 10);
+            if (aulaSelect) aulaSelect.value = reserva.aula;
+            if (disciplinaInput) disciplinaInput.value = reserva.disciplina || '';
+            if (turmaInput) turmaInput.value = reserva.turma || '';
+        }
+
+        if (bookingModalTitle) {
+            bookingModalTitle.textContent = reservationId ? 'Editar Agendamento' : 'Nova Reserva de Recurso';
+        }
+        if (bookingSubmitButton) {
+            bookingSubmitButton.textContent = reservationId ? 'Salvar Alterações' : 'Confirmar Agendamento';
+        }
         if (modal) {
             modal.classList.add('active');
         }
     };
 
     const closeModal = () => {
+        reservationEditingId = null;
+        if (bookingModalTitle) bookingModalTitle.textContent = 'Nova Reserva de Recurso';
+        if (bookingSubmitButton) bookingSubmitButton.textContent = 'Confirmar Agendamento';
         if (modal) {
             modal.classList.remove('active');
         }
@@ -528,11 +592,29 @@ document.addEventListener('DOMContentLoaded', () => {
         const cancelButton = event.target.closest('.btn-cancel-reservation');
         if (cancelButton) {
             const id = cancelButton.dataset.id;
-            const reservas = getReservations().filter((reserva) => String(reserva.id) !== String(id));
+            const usuarioAtual = getCurrentUser();
+            const reserva = getReservations().find((item) => String(item.id) === String(id));
+            const podeCancelar = reserva && usuarioAtual && (
+                userHasManagementAccess() ||
+                reserva.professor === usuarioAtual.nome ||
+                reserva.usuarioEmail === usuarioAtual.email
+            );
+            if (!podeCancelar) {
+                alert('Você não tem permissão para cancelar este agendamento.');
+                return;
+            }
+
+            const reservas = getReservations().filter((item) => String(item.id) !== String(id));
             saveReservations(reservas);
             renderMyReservations();
             renderSchedule();
             alert('Reserva cancelada com sucesso!');
+            return;
+        }
+
+        const editButton = event.target.closest('.btn-edit-reservation');
+        if (editButton) {
+            openModal(editButton.dataset.id);
             return;
         }
 
@@ -565,7 +647,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const sectionSchedule = document.querySelector('.schedule-section');
 
     if (btnOpenModal) {
-        btnOpenModal.addEventListener('click', openModal);
+        btnOpenModal.addEventListener('click', () => openModal());
     }
 
     if (btnOpenModalNav) {
@@ -638,11 +720,16 @@ document.addEventListener('DOMContentLoaded', () => {
     if (dataInput && !dataInput.value) {
         dataInput.value = today;
     }
+    updateBookingDateLimits();
 
     if (scheduleBody) {
         scheduleBody.addEventListener('click', (event) => {
             const slot = event.target.closest('[data-slot-date]');
             if (!slot) return;
+            if (!canReserveDate(slot.dataset.slotDate)) {
+                alert('Docentes podem reservar apenas para hoje ou amanhã.');
+                return;
+            }
 
             if (dataInput) dataInput.value = slot.dataset.slotDate;
             if (aulaSelect) aulaSelect.value = slot.dataset.slotAula;
@@ -686,10 +773,58 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
+            if (!reservationEditingId && !canReserveDate(data)) {
+                alert('Docentes podem reservar apenas para hoje ou amanhã.');
+                return;
+            }
+
             const recursoNome = recursoSelect.options[recursoSelect.selectedIndex].text;
             const aulaTexto = aulaSelect.options[aulaSelect.selectedIndex].text;
             const horario = aulaTexto.match(/\(([^)]+)\)/);
             const usuarioAtual = getCurrentUser();
+
+            if (reservationEditingId) {
+                if (!userHasManagementAccess()) {
+                    alert('Apenas coordenadores e administradores podem editar agendamentos.');
+                    return;
+                }
+
+                const reservas = getReservations();
+                const index = reservas.findIndex((reserva) => String(reserva.id) === String(reservationEditingId));
+                if (index === -1) {
+                    alert('Agendamento não encontrado.');
+                    return;
+                }
+
+                const conflito = reservas.some((reserva) =>
+                    String(reserva.id) !== String(reservationEditingId) &&
+                    String(reserva.recursoId) === String(recursoId) &&
+                    String(reserva.data).slice(0, 10) === data &&
+                    String(reserva.aula) === String(aula)
+                );
+                if (conflito) {
+                    alert('Esse recurso já está reservado nessa data e aula.');
+                    return;
+                }
+
+                reservas[index] = {
+                    ...reservas[index],
+                    recursoId,
+                    recursoNome,
+                    disciplina,
+                    turma,
+                    data,
+                    aula,
+                    aulaNome: aulaTexto.split(' (')[0],
+                    horario: horario ? horario[1] : ''
+                };
+                saveReservations(reservas);
+                closeModal();
+                renderMyReservations();
+                renderSchedule();
+                alert('Agendamento atualizado com sucesso!');
+                return;
+            }
 
             const novaReserva = {
                 id: Date.now(),

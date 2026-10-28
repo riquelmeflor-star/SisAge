@@ -1,5 +1,8 @@
 const USERS_KEY = 'cetiUsuarios';
 const SESSION_KEY = 'cetiUsuarioAtual';
+const PROFILE_PHOTO_KEY_PREFIX = 'cetiFotoPerfil:';
+const MAX_PROFILE_PHOTO_SIZE = 2 * 1024 * 1024;
+const PROFILE_PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
 const getUsers = () => {
     try {
@@ -84,12 +87,131 @@ const renderUserProfile = () => {
     }
 
     if (userAvatar) {
-        userAvatar.textContent = user.nome
+        const initials = user.nome
             .split(' ')
             .slice(0, 2)
             .map((parte) => parte.charAt(0).toUpperCase())
             .join('');
+        const initialsElement = userAvatar.querySelector('.avatar-initials');
+        if (initialsElement) initialsElement.textContent = initials;
+
+        userAvatar.hidden = false;
+        userAvatar.setAttribute('aria-label', 'Visualizar ou alterar foto do perfil');
+        userAvatar.title = 'Visualizar ou alterar foto do perfil';
+
+        const photo = localStorage.getItem(`${PROFILE_PHOTO_KEY_PREFIX}${user.email.toLowerCase()}`);
+        userAvatar.style.backgroundImage = photo ? `url("${photo}")` : '';
+        if (initialsElement) initialsElement.hidden = Boolean(photo);
     }
+};
+
+const initProfilePhotoUpload = () => {
+    const user = getCurrentUser();
+    const button = document.getElementById('btnProfilePhoto');
+    const input = document.getElementById('profilePhotoInput');
+    if (!user || !button || !input) return;
+
+    let modal = document.getElementById('profilePhotoModal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'profilePhotoModal';
+        modal.className = 'modal-overlay profile-photo-modal';
+        modal.innerHTML = `
+            <div class="modal profile-photo-modal-content" role="dialog" aria-modal="true" aria-labelledby="profilePhotoTitle">
+                <div class="modal-header">
+                    <h3 id="profilePhotoTitle">Foto do perfil</h3>
+                    <button class="close-modal" id="btnCloseProfilePhoto" type="button" aria-label="Fechar">&times;</button>
+                </div>
+                <div class="modal-body profile-photo-body">
+                    <div id="profilePhotoPreview" class="profile-photo-preview" aria-label="Foto do perfil"></div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn-secondary" id="btnCloseProfilePhotoFooter">Fechar</button>
+                        <button type="button" class="btn-primary" id="btnChangeProfilePhoto">
+                            <i class="fa-solid fa-camera" aria-hidden="true"></i> Alterar foto
+                        </button>
+                    </div>
+                </div>
+            </div>`;
+        document.body.appendChild(modal);
+    }
+
+    const preview = document.getElementById('profilePhotoPreview');
+    const openModal = () => {
+        const photo = localStorage.getItem(`${PROFILE_PHOTO_KEY_PREFIX}${user.email.toLowerCase()}`);
+        preview.style.backgroundImage = '';
+        preview.textContent = '';
+        preview.classList.toggle('has-photo', Boolean(photo));
+
+        if (photo) {
+            preview.style.backgroundImage = `url("${photo}")`;
+        } else {
+            preview.textContent = user.nome
+                .split(' ')
+                .slice(0, 2)
+                .map((parte) => parte.charAt(0).toUpperCase())
+                .join('');
+        }
+
+        modal.classList.add('active');
+        document.getElementById('btnCloseProfilePhoto').focus();
+    };
+    const closeModal = () => modal.classList.remove('active');
+
+    button.setAttribute('aria-haspopup', 'dialog');
+    button.addEventListener('click', openModal);
+    document.getElementById('btnCloseProfilePhoto').addEventListener('click', closeModal);
+    document.getElementById('btnCloseProfilePhotoFooter').addEventListener('click', closeModal);
+    document.getElementById('btnChangeProfilePhoto').addEventListener('click', () => input.click());
+    modal.addEventListener('click', (event) => {
+        if (event.target === modal) closeModal();
+    });
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && modal.classList.contains('active')) closeModal();
+    });
+
+    input.addEventListener('change', () => {
+        const file = input.files[0];
+        input.value = '';
+        if (!file) return;
+
+        if (!PROFILE_PHOTO_TYPES.includes(file.type)) {
+            alert('Escolha uma imagem JPG, PNG ou WebP.');
+            return;
+        }
+
+        if (file.size > MAX_PROFILE_PHOTO_SIZE) {
+            alert('A foto deve ter no máximo 2 MB.');
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = () => {
+            if (typeof reader.result !== 'string') {
+                alert('Não foi possível carregar a foto. Tente novamente.');
+                return;
+            }
+
+            try {
+                localStorage.setItem(
+                    `${PROFILE_PHOTO_KEY_PREFIX}${user.email.toLowerCase()}`,
+                    reader.result
+                );
+                renderUserProfile();
+                if (preview) {
+                    preview.textContent = '';
+                    preview.classList.add('has-photo');
+                    preview.style.backgroundImage = `url("${reader.result}")`;
+                }
+            } catch (error) {
+                console.error('Erro ao salvar foto do perfil:', error);
+                alert('Não foi possível salvar a foto neste navegador. Escolha um arquivo menor.');
+            }
+        };
+        reader.onerror = () => {
+            alert('Não foi possível ler a foto. Tente outro arquivo.');
+        };
+        reader.readAsDataURL(file);
+    });
 };
 
 const initLoginPage = () => {
@@ -306,6 +428,7 @@ const initProtectedPage = () => {
     }
 
     renderUserProfile();
+    initProfilePhotoUpload();
     initLogout();
 };
 

@@ -27,7 +27,11 @@
                 <i class="fa-solid fa-moon" aria-hidden="true"></i>
             </button>
             <i class="fa-regular fa-bell notification-badge"></i>
-            <div class="avatar">AS</div>
+            <button id="btnProfilePhoto" class="avatar" type="button" aria-label="Visualizar ou alterar foto do perfil" title="Visualizar ou alterar foto do perfil">
+                <span class="avatar-initials">AS</span>
+                <i class="fa-solid fa-camera avatar-camera" aria-hidden="true"></i>
+            </button>
+            <input id="profilePhotoInput" type="file" accept="image/jpeg,image/png,image/webp" hidden>
             <div class="user-info">
                 <span class="user-name">Profª Ana Silva</span>
                 <span class="user-role">Docente</span>
@@ -44,7 +48,7 @@
                 <a href="#" class="nav-item" id="btnOpenModalNav"><i class="fa-solid fa-calendar-plus"></i> Novo Agendamento</a>
                 <a href="#laboratorios" class="nav-item resource-filter" data-filter="laboratorio"><i class="fa-solid fa-desktop"></i> Laboratórios de Info</a>
                 <a href="#equipamentos" class="nav-item resource-filter" data-filter="equipamento"><i class="fa-solid fa-video"></i> Equipamentos</a>
-                <a href="#minhas-reservas" class="nav-item" id="btnMyReservations"><i class="fa-solid fa-calendar-check"></i> Minhas Reservas</a>
+                <a href="#minhas-reservas" class="nav-item" id="btnMyReservations"><i class="fa-solid fa-calendar-check"></i> <span id="reservationsNavLabel">Minhas Reservas</span></a>
                 <a href="relatorios.html" class="nav-item"><i class="fa-solid fa-chart-line"></i> Relatórios de Uso</a>
             </nav>
             <div class="support-box">
@@ -116,7 +120,7 @@
 
             <section class="my-reservas-section hidden" id="minhas-reservas">
                 <div class="section-header">
-                    <h3>Minhas Reservas</h3>
+                    <h3 id="reservationsTitle">Minhas Reservas</h3>
                     <span id="reservationsSummary">0 reservas</span>
                 </div>
                 <div class="reservations-list" id="reservationsList">

@@ -103,15 +103,45 @@ body {
 }
 
 .avatar {
+    position: relative;
+    flex: 0 0 36px;
     background: var(--blue);
     width: 36px;
     height: 36px;
     border-radius: 50%;
+    border: 0;
     display: flex;
     align-items: center;
     justify-content: center;
     font-weight: bold;
     font-size: 13px;
+    color: #fff;
+    background-position: center;
+    background-size: cover;
+    cursor: pointer;
+    overflow: hidden;
+}
+
+.avatar:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 2px;
+}
+
+.avatar-camera {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    display: grid;
+    place-items: center;
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    background: var(--navy);
+    font-size: 8px;
+}
+
+.avatar[hidden] {
+    display: none;
 }
 
 .user-info {
@@ -486,6 +516,25 @@ body {
 
 .modal-footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; }
 .btn-secondary { background: #E2E8F0; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; }
+.profile-photo-modal-content { width: min(420px, 100%); }
+.profile-photo-body { align-items: center; }
+.profile-photo-preview {
+    width: 280px;
+    height: 280px;
+    max-width: 100%;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    background-color: var(--blue);
+    background-position: center;
+    background-size: cover;
+    color: #fff;
+    font-size: 64px;
+    font-weight: 700;
+}
+.profile-photo-preview.has-photo { border: 4px solid var(--gray-border); }
+.profile-photo-body .modal-footer { width: 100%; }
 
 .admin-tools {
     display: none;

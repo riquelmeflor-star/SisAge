@@ -89,6 +89,7 @@ Após o servidor estar rodando:
    - **Email:** ana@ceti.edu.br | **Senha:** 123456 (Docente)
    - **Email:** carla@ceti.edu.br | **Senha:** 123456 (Coordenador)
    - **Email:** marcos@ceti.edu.br | **Senha:** 123456 (Docente)
+3. Docentes e coordenadores podem clicar no avatar para escolher ou trocar uma foto JPG, PNG ou WebP de até 2 MB. A foto fica salva no navegador usado para o acesso.
 
 ## 📁 Estrutura de pastas
 
