@@ -1,5 +1,5 @@
 const express = require('express');
-const mysql = require('mysql2/promise');
+const { Pool } = require('pg');
 const cors = require('cors');
 const bcryptjs = require('bcryptjs');
 const jwt = require('jsonwebtoken');
@@ -8,24 +8,51 @@ const https = require('https');
 const crypto = require('crypto');
 
 const app = express();
-const PORT = 3000;
-const SECRET_KEY = 'seu_segredo_super_secreto_mude_isso';
+const PORT = process.env.PORT || 3000;
+if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
+    throw new Error('JWT_SECRET precisa ser configurado em produção');
+}
+const SECRET_KEY = process.env.JWT_SECRET || 'desenvolvimento-local-altere-em-producao';
 
 // Middleware
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'Agendamentos')));
 
-// Pool de conexão MySQL
-const pool = mysql.createPool({
-    host: 'localhost',
-    user: 'root',
-    password: '', // Ajuste conforme necessário
-    database: 'ceti_agendamento',
-    waitForConnections: true,
-    connectionLimit: 10,
-    queueLimit: 0
+const connectionString = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.POSTGRES_PRISMA_URL;
+if (process.env.NODE_ENV === 'production' && !connectionString) {
+    throw new Error('DATABASE_URL precisa ser configurada em produção');
+}
+
+const pool = new Pool({
+    ...(connectionString ? { connectionString } : {
+        host: process.env.PGHOST || process.env.DB_HOST || 'localhost',
+        user: process.env.PGUSER || process.env.DB_USER || 'postgres',
+        password: process.env.PGPASSWORD || process.env.DB_PASSWORD,
+        database: process.env.PGDATABASE || process.env.DB_NAME || 'ceti_agendamento',
+        port: Number(process.env.PGPORT || process.env.DB_PORT || 5432)
+    }),
+    max: process.env.NODE_ENV === 'production' ? 2 : 10,
+    idleTimeoutMillis: 10000,
+    connectionTimeoutMillis: 5000
 });
+pool.on('error', (error) => console.error('Erro inesperado no pool PostgreSQL:', error));
+
+const AULAS = {
+    1: ['07:30:00', '08:30:00'],
+    2: ['08:30:00', '09:30:00'],
+    3: ['09:50:00', '10:50:00'],
+    4: ['10:50:00', '11:50:00'],
+    5: ['11:50:00', '12:50:00'],
+    6: ['13:50:00', '14:50:00'],
+    7: ['14:50:00', '15:50:00'],
+    8: ['15:50:00', '16:50:00']
+};
+
+const senhaEstaCriptografada = (senha) => /^\$2[aby]\$/.test(senha);
+const verificarSenha = (senha, senhaArmazenada) => senhaEstaCriptografada(senhaArmazenada)
+    ? bcryptjs.compare(senha, senhaArmazenada)
+    : Promise.resolve(senha === senhaArmazenada);
 
 // Middleware para verificar token
 const verificarToken = (req, res, next) => {
@@ -108,8 +135,8 @@ app.post('/api/auth/google', async (req, res) => {
     try {
         const contaGoogle = await verificarTokenGoogle(credential);
         const email = contaGoogle.email.toLowerCase();
-        const [usuarios] = await pool.query(
-            'SELECT id, nome, email, cargo FROM usuarios WHERE email = ?',
+        const { rows: usuarios } = await pool.query(
+            'SELECT id, nome, email, cargo FROM usuarios WHERE email = $1',
             [email]
         );
 
@@ -118,11 +145,11 @@ app.post('/api/auth/google', async (req, res) => {
             const nome = contaGoogle.name || email;
             const senhaAleatoria = crypto.randomBytes(32).toString('hex');
             const senhaHash = await bcryptjs.hash(senhaAleatoria, 10);
-            const [resultado] = await pool.query(
-                'INSERT INTO usuarios (nome, email, senha, cargo) VALUES (?, ?, ?, ?)',
+            const { rows } = await pool.query(
+                'INSERT INTO usuarios (nome, email, senha, cargo) VALUES ($1, $2, $3, $4) RETURNING id',
                 [nome, email, senhaHash, 'docente']
             );
-            usuario = { id: resultado.insertId, nome, email, cargo: 'docente' };
+            usuario = { id: rows[0].id, nome, email, cargo: 'docente' };
         }
 
         const token = jwt.sign(
@@ -160,19 +187,22 @@ app.post('/api/auth/login', async (req, res) => {
     }
 
     try {
-        const conn = await pool.getConnection();
-        const [usuarios] = await conn.query('SELECT * FROM usuarios WHERE email = ?', [email]);
-        conn.release();
+        const { rows: usuarios } = await pool.query('SELECT * FROM usuarios WHERE email = $1', [email]);
 
         if (usuarios.length === 0) {
             return res.status(401).json({ erro: 'Email ou senha incorretos' });
         }
 
         const usuario = usuarios[0];
-        const senhaCorreta = await bcryptjs.compare(senha, usuario.senha);
+        const senhaCorreta = await verificarSenha(senha, usuario.senha);
 
         if (!senhaCorreta) {
             return res.status(401).json({ erro: 'Email ou senha incorretos' });
+        }
+
+        if (!senhaEstaCriptografada(usuario.senha)) {
+            const senhaHash = await bcryptjs.hash(senha, 10);
+            await pool.query('UPDATE usuarios SET senha = $1 WHERE id = $2', [senhaHash, usuario.id]);
         }
 
         const token = jwt.sign(
@@ -199,27 +229,27 @@ app.post('/api/auth/login', async (req, res) => {
 
 // Registrar
 app.post('/api/auth/register', async (req, res) => {
-    const { nome, email, senha, cargo = 'docente' } = req.body;
+    const { nome, email, senha } = req.body;
 
     if (!nome || !email || !senha) {
         return res.status(400).json({ erro: 'Nome, email e senha são obrigatórios' });
     }
+    if (senha.length < 6) {
+        return res.status(400).json({ erro: 'A senha deve ter pelo menos 6 caracteres' });
+    }
 
     try {
-        const conn = await pool.getConnection();
-        const [usuarios] = await conn.query('SELECT id FROM usuarios WHERE email = ?', [email]);
+        const { rows } = await pool.query(
+            `INSERT INTO usuarios (nome, email, senha, cargo)
+             VALUES ($1, $2, $3, 'docente')
+             ON CONFLICT (email) DO NOTHING
+             RETURNING id`,
+            [nome, email, await bcryptjs.hash(senha, 10)]
+        );
 
-        if (usuarios.length > 0) {
-            conn.release();
+        if (rows.length === 0) {
             return res.status(400).json({ erro: 'Email já cadastrado' });
         }
-
-        const senhaHash = await bcryptjs.hash(senha, 10);
-        await conn.query(
-            'INSERT INTO usuarios (nome, email, senha, cargo) VALUES (?, ?, ?, ?)',
-            [nome, email, senhaHash, cargo]
-        );
-        conn.release();
 
         res.json({ sucesso: true, mensagem: 'Usuário registrado com sucesso' });
     } catch (error) {
@@ -229,25 +259,24 @@ app.post('/api/auth/register', async (req, res) => {
 });
 
 // Reset de senha
-app.post('/api/auth/reset-password', async (req, res) => {
-    const { email, novaSenha } = req.body;
+app.post('/api/auth/reset-password', verificarToken, async (req, res) => {
+    const { senhaAtual, novaSenha } = req.body;
 
-    if (!email || !novaSenha) {
-        return res.status(400).json({ erro: 'Email e nova senha são obrigatórios' });
+    if (!senhaAtual || !novaSenha) {
+        return res.status(400).json({ erro: 'Senha atual e nova senha são obrigatórias' });
+    }
+    if (novaSenha.length < 6) {
+        return res.status(400).json({ erro: 'A nova senha deve ter pelo menos 6 caracteres' });
     }
 
     try {
-        const conn = await pool.getConnection();
-        const senhaHash = await bcryptjs.hash(novaSenha, 10);
-        const [result] = await conn.query(
-            'UPDATE usuarios SET senha = ? WHERE email = ?',
-            [senhaHash, email]
-        );
-        conn.release();
-
-        if (result.affectedRows === 0) {
-            return res.status(404).json({ erro: 'Usuário não encontrado' });
+        const { rows: usuarios } = await pool.query('SELECT id, senha FROM usuarios WHERE id = $1', [req.usuarioId]);
+        if (usuarios.length === 0 || !(await verificarSenha(senhaAtual, usuarios[0].senha))) {
+            return res.status(401).json({ erro: 'Senha atual incorreta' });
         }
+
+        const senhaHash = await bcryptjs.hash(novaSenha, 10);
+        await pool.query('UPDATE usuarios SET senha = $1 WHERE id = $2', [senhaHash, req.usuarioId]);
 
         res.json({ sucesso: true, mensagem: 'Senha redefinida com sucesso' });
     } catch (error) {
@@ -261,9 +290,7 @@ app.post('/api/auth/reset-password', async (req, res) => {
 // Listar recursos
 app.get('/api/recursos', async (req, res) => {
     try {
-        const conn = await pool.getConnection();
-        const [recursos] = await conn.query('SELECT * FROM recursos ORDER BY nome');
-        conn.release();
+        const { rows: recursos } = await pool.query('SELECT * FROM recursos ORDER BY nome');
 
         res.json(recursos);
     } catch (error) {
@@ -272,9 +299,34 @@ app.get('/api/recursos', async (req, res) => {
     }
 });
 
+app.get('/api/agenda', verificarToken, async (req, res) => {
+    try {
+        const podeVerDetalhes = ['coordenador', 'admin'].includes(req.usuarioCargo);
+        const { rows: reservas } = await pool.query(
+            `SELECT r.id, r.usuario_id, r.recurso_id AS "recursoId",
+                to_char(r.data_reserva, 'YYYY-MM-DD') AS data,
+                to_char(r.horario_inicio, 'HH24:MI:SS') AS horario_inicio,
+                to_char(r.horario_fim, 'HH24:MI:SS') AS horario_fim,
+                CASE WHEN r.usuario_id = $1 OR $2::boolean THEN r.disciplina ELSE '' END AS disciplina,
+                CASE WHEN r.usuario_id = $1 OR $2::boolean THEN r.turma ELSE '' END AS turma,
+                CASE WHEN r.usuario_id = $1 OR $2::boolean THEN u.nome ELSE 'Reservado' END AS professor,
+                r.status, rec.nome AS "recursoNome"
+             FROM reservas r
+             JOIN usuarios u ON r.usuario_id = u.id
+             JOIN recursos rec ON r.recurso_id = rec.id
+             ORDER BY r.data_reserva, r.horario_inicio`,
+            [req.usuarioId, podeVerDetalhes]
+        );
+        res.json(reservas);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ erro: 'Erro ao carregar agenda' });
+    }
+});
+
 // Criar recurso
 app.post('/api/recursos', verificarToken, async (req, res) => {
-    const { nome, categoria, tipo, capacidade, descricao, status = 'disponivel' } = req.body;
+    const { nome, categoria, capacidade, descricao, status = 'disponivel' } = req.body;
 
     // Apenas coordenadores e admins podem criar
     if (!['coordenador', 'admin'].includes(req.usuarioCargo)) {
@@ -286,14 +338,12 @@ app.post('/api/recursos', verificarToken, async (req, res) => {
     }
 
     try {
-        const conn = await pool.getConnection();
-        const [result] = await conn.query(
-            'INSERT INTO recursos (nome, categoria, tipo, capacidade, descricao, status) VALUES (?, ?, ?, ?, ?, ?)',
-            [nome, categoria, tipo, capacidade || 0, descricao || '', status]
+        const { rows } = await pool.query(
+            'INSERT INTO recursos (nome, categoria, capacidade, descricao, status) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+            [nome, categoria, capacidade || 0, descricao || '', status]
         );
-        conn.release();
 
-        res.json({ sucesso: true, id: result.insertId, mensagem: 'Recurso criado com sucesso' });
+        res.json({ sucesso: true, id: rows[0].id, mensagem: 'Recurso criado com sucesso' });
     } catch (error) {
         console.error(error);
         res.status(500).json({ erro: 'Erro ao criar recurso' });
@@ -303,19 +353,18 @@ app.post('/api/recursos', verificarToken, async (req, res) => {
 // Atualizar recurso
 app.put('/api/recursos/:id', verificarToken, async (req, res) => {
     const { id } = req.params;
-    const { nome, categoria, tipo, capacidade, descricao, status } = req.body;
+    const { nome, categoria, capacidade, descricao, status } = req.body;
 
     if (!['coordenador', 'admin'].includes(req.usuarioCargo)) {
         return res.status(403).json({ erro: 'Acesso negado' });
     }
 
     try {
-        const conn = await pool.getConnection();
-        await conn.query(
-            'UPDATE recursos SET nome = ?, categoria = ?, tipo = ?, capacidade = ?, descricao = ?, status = ? WHERE id = ?',
-            [nome, categoria, tipo, capacidade, descricao, status, id]
+        const { rowCount } = await pool.query(
+            'UPDATE recursos SET nome = $1, categoria = $2, capacidade = $3, descricao = $4, status = $5 WHERE id = $6',
+            [nome, categoria, capacidade, descricao, status, id]
         );
-        conn.release();
+        if (!rowCount) return res.status(404).json({ erro: 'Recurso não encontrado' });
 
         res.json({ sucesso: true, mensagem: 'Recurso atualizado com sucesso' });
     } catch (error) {
@@ -333,9 +382,8 @@ app.delete('/api/recursos/:id', verificarToken, async (req, res) => {
     }
 
     try {
-        const conn = await pool.getConnection();
-        await conn.query('DELETE FROM recursos WHERE id = ?', [id]);
-        conn.release();
+        const { rowCount } = await pool.query('DELETE FROM recursos WHERE id = $1', [id]);
+        if (!rowCount) return res.status(404).json({ erro: 'Recurso não encontrado' });
 
         res.json({ sucesso: true, mensagem: 'Recurso deletado com sucesso' });
     } catch (error) {
@@ -349,11 +397,22 @@ app.delete('/api/recursos/:id', verificarToken, async (req, res) => {
 // Listar reservas
 app.get('/api/reservas', verificarToken, async (req, res) => {
     try {
-        const conn = await pool.getConnection();
-        const [reservas] = await conn.query(
-            'SELECT r.*, u.nome, rec.nome as recurso_nome FROM reservas r JOIN usuarios u ON r.usuario_id = u.id JOIN recursos rec ON r.recurso_id = rec.id ORDER BY r.data DESC'
+        const filtroUsuario = ['coordenador', 'admin'].includes(req.usuarioCargo) ? '' : 'WHERE r.usuario_id = $1';
+        const parametros = filtroUsuario ? [req.usuarioId] : [];
+        const { rows: reservas } = await pool.query(
+            `SELECT r.id, r.usuario_id, r.recurso_id AS "recursoId",
+                    to_char(r.data_reserva, 'YYYY-MM-DD') AS data,
+                    to_char(r.horario_inicio, 'HH24:MI:SS') AS horario_inicio,
+                    to_char(r.horario_fim, 'HH24:MI:SS') AS horario_fim,
+                    r.disciplina, r.turma, r.status, u.nome AS professor,
+                    u.email AS "usuarioEmail", rec.nome AS "recursoNome"
+             FROM reservas r
+             JOIN usuarios u ON r.usuario_id = u.id
+             JOIN recursos rec ON r.recurso_id = rec.id
+             ${filtroUsuario}
+             ORDER BY r.data_reserva, r.horario_inicio`
+            , parametros
         );
-        conn.release();
 
         res.json(reservas);
     } catch (error) {
@@ -365,35 +424,70 @@ app.get('/api/reservas', verificarToken, async (req, res) => {
 // Criar reserva
 app.post('/api/reservas', verificarToken, async (req, res) => {
     const { recurso_id, data, aula, disciplina, turma } = req.body;
+    const horario = AULAS[Number(aula)];
 
-    if (!recurso_id || !data || !aula || !disciplina || !turma) {
+    if (!recurso_id || !data || !horario || !disciplina || !turma) {
         return res.status(400).json({ erro: 'Todos os campos são obrigatórios' });
     }
 
     try {
-        const conn = await pool.getConnection();
-
-        // Verificar disponibilidade
-        const [conflitos] = await conn.query(
-            'SELECT id FROM reservas WHERE recurso_id = ? AND data = ? AND aula = ?',
-            [recurso_id, data, aula]
+        const { rows: conflitos } = await pool.query(
+            `SELECT id FROM reservas
+             WHERE recurso_id = $1 AND data_reserva = $2 AND status <> 'cancelada'
+               AND horario_inicio < $3 AND horario_fim > $4`,
+            [recurso_id, data, horario[1], horario[0]]
         );
 
         if (conflitos.length > 0) {
-            conn.release();
             return res.status(400).json({ erro: 'Horário já reservado' });
         }
 
-        const [result] = await conn.query(
-            'INSERT INTO reservas (usuario_id, recurso_id, data, aula, disciplina, turma, status) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [req.usuarioId, recurso_id, data, aula, disciplina, turma, 'confirmada']
+        const { rows } = await pool.query(
+            'INSERT INTO reservas (usuario_id, recurso_id, data_reserva, horario_inicio, horario_fim, disciplina, turma, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id',
+            [req.usuarioId, recurso_id, data, horario[0], horario[1], disciplina, turma, 'confirmada']
         );
-        conn.release();
 
-        res.json({ sucesso: true, id: result.insertId, mensagem: 'Reserva criada com sucesso' });
+        res.json({ sucesso: true, id: rows[0].id, mensagem: 'Reserva criada com sucesso' });
     } catch (error) {
         console.error(error);
         res.status(500).json({ erro: 'Erro ao criar reserva' });
+    }
+});
+
+app.put('/api/reservas/:id', verificarToken, async (req, res) => {
+    if (!['coordenador', 'admin'].includes(req.usuarioCargo)) {
+        return res.status(403).json({ erro: 'Acesso negado' });
+    }
+
+    const { recurso_id, data, aula, disciplina, turma } = req.body;
+    const horario = AULAS[Number(aula)];
+    if (!recurso_id || !data || !horario || !disciplina || !turma) {
+        return res.status(400).json({ erro: 'Todos os campos são obrigatórios' });
+    }
+
+    try {
+                const { rows: conflitos } = await pool.query(
+            `SELECT id FROM reservas
+                         WHERE recurso_id = $1 AND data_reserva = $2 AND id <> $3 AND status <> 'cancelada'
+                             AND horario_inicio < $4 AND horario_fim > $5`,
+            [recurso_id, data, req.params.id, horario[1], horario[0]]
+        );
+        if (conflitos.length) {
+            return res.status(409).json({ erro: 'Horário já reservado' });
+        }
+
+        const { rowCount } = await pool.query(
+            `UPDATE reservas SET recurso_id = $1, data_reserva = $2, horario_inicio = $3,
+             horario_fim = $4, disciplina = $5, turma = $6 WHERE id = $7`,
+            [recurso_id, data, horario[0], horario[1], disciplina, turma, req.params.id]
+        );
+        if (!rowCount) {
+            return res.status(404).json({ erro: 'Reserva não encontrada' });
+        }
+        res.json({ sucesso: true, mensagem: 'Reserva atualizada com sucesso' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ erro: 'Erro ao atualizar reserva' });
     }
 });
 
@@ -402,22 +496,18 @@ app.delete('/api/reservas/:id', verificarToken, async (req, res) => {
     const { id } = req.params;
 
     try {
-        const conn = await pool.getConnection();
-        const [reservas] = await conn.query('SELECT usuario_id FROM reservas WHERE id = ?', [id]);
+        const { rows: reservas } = await pool.query('SELECT usuario_id FROM reservas WHERE id = $1', [id]);
 
         if (reservas.length === 0) {
-            conn.release();
             return res.status(404).json({ erro: 'Reserva não encontrada' });
         }
 
         // Apenas o criador ou admin pode cancelar
-        if (reservas[0].usuario_id !== req.usuarioId && req.usuarioCargo !== 'admin') {
-            conn.release();
+        if (reservas[0].usuario_id !== req.usuarioId && !['coordenador', 'admin'].includes(req.usuarioCargo)) {
             return res.status(403).json({ erro: 'Acesso negado' });
         }
 
-        await conn.query('DELETE FROM reservas WHERE id = ?', [id]);
-        conn.release();
+        await pool.query("UPDATE reservas SET status = 'cancelada' WHERE id = $1", [id]);
 
         res.json({ sucesso: true, mensagem: 'Reserva cancelada com sucesso' });
     } catch (error) {
@@ -431,21 +521,19 @@ app.delete('/api/reservas/:id', verificarToken, async (req, res) => {
 // Relatório de uso
 app.get('/api/relatorios/uso', verificarToken, async (req, res) => {
     try {
-        const conn = await pool.getConnection();
-        const [relatorio] = await conn.query(`
+        const { rows: relatorio } = await pool.query(`
             SELECT 
                 rec.id,
                 rec.nome,
                 rec.categoria,
-                COUNT(r.id) as total_reservas,
-                COUNT(CASE WHEN r.data >= CURDATE() THEN 1 END) as reservas_futuras,
-                COUNT(CASE WHEN r.data < CURDATE() THEN 1 END) as reservas_passadas
+                COUNT(r.id) AS total_reservas,
+                COUNT(r.id) FILTER (WHERE r.data_reserva >= CURRENT_DATE) AS reservas_futuras,
+                COUNT(r.id) FILTER (WHERE r.data_reserva < CURRENT_DATE) AS reservas_passadas
             FROM recursos rec
             LEFT JOIN reservas r ON rec.id = r.recurso_id
             GROUP BY rec.id, rec.nome, rec.categoria
             ORDER BY total_reservas DESC
         `);
-        conn.release();
 
         res.json(relatorio);
     } catch (error) {
@@ -456,7 +544,9 @@ app.get('/api/relatorios/uso', verificarToken, async (req, res) => {
 
 // ==================== INICIALIZAÇÃO ====================
 
-app.listen(PORT, () => {
+if (require.main === module) app.listen(PORT, () => {
     console.log(`Servidor rodando em http://localhost:${PORT}`);
-    console.log('Certifique-se de que o MySQL está rodando com a base de dados "ceti_agendamento"');
+    console.log('Configure DATABASE_URL para conectar ao banco PostgreSQL');
 });
+
+module.exports = app;

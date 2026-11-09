@@ -1,51 +1,7 @@
-const USERS_KEY = 'cetiUsuarios';
 const SESSION_KEY = 'cetiUsuarioAtual';
 const PROFILE_PHOTO_KEY_PREFIX = 'cetiFotoPerfil:';
 const MAX_PROFILE_PHOTO_SIZE = 2 * 1024 * 1024;
 const PROFILE_PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
-
-const getUsers = () => {
-    try {
-        return JSON.parse(localStorage.getItem(USERS_KEY) || '[]');
-    } catch (error) {
-        return [];
-    }
-};
-
-const saveUsers = (users) => {
-    localStorage.setItem(USERS_KEY, JSON.stringify(users));
-};
-
-const ensureDefaultUsers = () => {
-    const usuarios = getUsers();
-
-    if (usuarios.length > 0) {
-        return;
-    }
-
-    const defaults = [
-        {
-            nome: 'Profª Ana Silva',
-            email: 'ana@ceti.edu.br',
-            senha: '123456',
-            cargo: 'docente'
-        },
-        {
-            nome: 'Prof. Marcos Oliveira',
-            email: 'marcos@ceti.edu.br',
-            senha: '123456',
-            cargo: 'docente'
-        },
-        {
-            nome: 'Coord. Carla Mendes',
-            email: 'carla@ceti.edu.br',
-            senha: '123456',
-            cargo: 'coordenador'
-        }
-    ];
-
-    saveUsers(defaults);
-};
 
 const getCurrentUser = () => {
     try {
@@ -61,7 +17,7 @@ const setCurrentUser = (usuario) => {
 
 const clearCurrentUser = () => {
     localStorage.removeItem(SESSION_KEY);
-    localStorage.removeItem('cetiToken');
+    api.removeToken();
 };
 
 const redirectToLogin = () => {
@@ -333,9 +289,7 @@ const initLoginPage = () => {
     const form = document.getElementById('loginForm');
     if (!form) return;
 
-    ensureDefaultUsers();
-
-    form.addEventListener('submit', (event) => {
+    form.addEventListener('submit', async (event) => {
         event.preventDefault();
 
         const email = document.getElementById('emailLogin').value.trim().toLowerCase();
@@ -346,22 +300,14 @@ const initLoginPage = () => {
             return;
         }
 
-        const usuarios = getUsers();
-        const usuario = usuarios.find((item) => item.email.toLowerCase() === email && item.senha === senha);
-
-        if (!usuario) {
-            alert('E-mail ou senha inválidos.');
-            return;
+        try {
+            const resultado = await api.login(email, senha);
+            api.setToken(resultado.token);
+            setCurrentUser(resultado.usuario);
+            window.location.href = 'index.html';
+        } catch (error) {
+            alert(error.message || 'Não foi possível entrar.');
         }
-
-        setCurrentUser({
-            nome: usuario.nome,
-            email: usuario.email,
-            cargo: usuario.cargo
-        });
-
-        alert(`Bem-vindo(a), ${usuario.nome}!`);
-        window.location.href = 'index.html';
     });
 
     initGoogleLogin();
@@ -403,7 +349,7 @@ const initGoogleLogin = async () => {
                         const result = await response.json();
                         if (!response.ok) throw new Error(result.erro || 'Falha no login Google.');
 
-                        localStorage.setItem('cetiToken', result.token);
+                        api.setToken(result.token);
                         setCurrentUser(result.usuario);
                         window.location.href = 'index.html';
                     } catch (error) {
@@ -434,16 +380,13 @@ const initRegisterPage = () => {
     const form = document.getElementById('registerForm');
     if (!form) return;
 
-    ensureDefaultUsers();
-
-    form.addEventListener('submit', (event) => {
+    form.addEventListener('submit', async (event) => {
         event.preventDefault();
 
         const nome = document.getElementById('nome').value.trim();
         const email = document.getElementById('email').value.trim().toLowerCase();
         const senha = document.getElementById('senha').value.trim();
         const confirmarSenha = document.getElementById('confirmarSenha').value.trim();
-        const cargo = document.getElementById('cargo').value;
 
         if (!nome || !email || !senha || !confirmarSenha) {
             alert('Preencha todos os campos para concluir o cadastro.');
@@ -460,24 +403,13 @@ const initRegisterPage = () => {
             return;
         }
 
-        const usuarios = getUsers();
-        const jaExiste = usuarios.some((usuario) => usuario.email.toLowerCase() === email);
-
-        if (jaExiste) {
-            alert('Este e-mail já está cadastrado.');
-            return;
+        try {
+            await api.register(nome, email, senha);
+            alert('Usuário cadastrado com sucesso!');
+            window.location.href = 'login.html';
+        } catch (error) {
+            alert(error.message || 'Não foi possível cadastrar.');
         }
-
-        usuarios.push({
-            nome,
-            email,
-            senha,
-            cargo
-        });
-
-        saveUsers(usuarios);
-        alert('Usuário cadastrado com sucesso!');
-        window.location.href = 'login.html';
     });
 };
 
@@ -485,16 +417,14 @@ const initResetPage = () => {
     const form = document.getElementById('resetForm');
     if (!form) return;
 
-    ensureDefaultUsers();
-
-    form.addEventListener('submit', (event) => {
+    form.addEventListener('submit', async (event) => {
         event.preventDefault();
 
-        const email = document.getElementById('emailReset').value.trim().toLowerCase();
+        const senhaAtual = document.getElementById('senhaAtual').value;
         const novaSenha = document.getElementById('novaSenha').value.trim();
         const confirmarNovaSenha = document.getElementById('confirmarNovaSenha').value.trim();
 
-        if (!email || !novaSenha || !confirmarNovaSenha) {
+        if (!senhaAtual || !novaSenha || !confirmarNovaSenha) {
             alert('Preencha todos os campos para redefinir a senha.');
             return;
         }
@@ -509,20 +439,20 @@ const initResetPage = () => {
             return;
         }
 
-        const usuarios = getUsers();
-        const index = usuarios.findIndex((usuario) => usuario.email.toLowerCase() === email);
-
-        if (index === -1) {
-            alert('E-mail não encontrado. Cadastre-se primeiro ou verifique o endereço informado.');
+        if (!api.getToken()) {
+            alert('Entre na sua conta antes de alterar a senha.');
+            window.location.href = 'login.html';
             return;
         }
 
-        usuarios[index].senha = novaSenha;
-        saveUsers(usuarios);
-
-        alert('Senha redefinida com sucesso!');
-        window.location.href = 'login.html';
-    })
+        try {
+            await api.resetPassword(senhaAtual, novaSenha);
+            alert('Senha redefinida com sucesso!');
+            form.reset();
+        } catch (error) {
+            alert(error.message || 'Não foi possível redefinir a senha.');
+        }
+    });
 };
 
 const initLogout = () => {
@@ -537,7 +467,7 @@ const initLogout = () => {
 
 const initProtectedPage = () => {
     const currentUser = getCurrentUser();
-    if (!currentUser) {
+    if (!currentUser || !api.getToken()) {
         redirectToLogin();
         return;
     }

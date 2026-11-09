@@ -91,7 +91,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const renderSchedule = () => {
         if (!scheduleHead || !scheduleBody) return;
 
-        const reservasAtivas = getReservations()
+        const reservasAtivas = getAgendaReservations()
             .filter((reserva) => reserva.status !== 'cancelada')
             .sort((a, b) => String(a.criadoEm || a.id).localeCompare(String(b.criadoEm || b.id)));
         const corPorReserva = new Map(reservasAtivas.map((reserva, index) => [
@@ -154,92 +154,39 @@ document.addEventListener('DOMContentLoaded', () => {
         renderSchedule();
     };
 
-    const RESOURCES_KEY = 'cetiRecursos';
-    const RESERVAS_KEY = 'cetiReservas';
+    let resourcesCache = [];
+    let reservationsCache = [];
+    let agendaCache = [];
 
-    const getResources = () => {
-        try {
-            const recursos = JSON.parse(localStorage.getItem(RESOURCES_KEY) || '[]');
+    const getResources = () => resourcesCache;
+    const saveResources = (resources) => { resourcesCache = resources; };
+    const getReservations = () => reservationsCache;
+    const saveReservations = (reservations) => { reservationsCache = reservations; };
+    const getAgendaReservations = () => agendaCache;
 
-            if (!Array.isArray(recursos) || recursos.length === 0) {
-                const defaultResources = [
-                    {
-                        id: 1,
-                        nome: 'Laboratório de Info 1',
-                        categoria: 'laboratorio',
-                        tipo: 'laboratorio',
-                        capacidade: 25,
-                        descricao: '25 PCs • Ar-condicionado • Projetor',
-                        status: 'disponivel',
-                        criadoEm: new Date().toISOString()
-                    },
-                    {
-                        id: 2,
-                        nome: 'Laboratório de Info 2',
-                        categoria: 'laboratorio',
-                        tipo: 'laboratorio',
-                        capacidade: 20,
-                        descricao: '20 PCs • Internet Fibra de Alta Velocidade',
-                        status: 'ocupado',
-                        criadoEm: new Date().toISOString()
-                    },
-                    {
-                        id: 3,
-                        nome: 'Kits de Projetor & Som',
-                        categoria: 'equipamento',
-                        tipo: 'equipamento',
-                        capacidade: 2,
-                        descricao: 'Epson HDMI + Caixa Amplificada Móvel',
-                        status: 'disponivel',
-                        criadoEm: new Date().toISOString()
-                    }
-                ];
-
-                saveResources(defaultResources);
-                return defaultResources;
-            }
-
-            const precisaNormalizar = recursos.some((recurso) => !recurso.categoria || !recurso.status || !recurso.tipo);
-
-            if (precisaNormalizar) {
-                const normalizedResources = recursos.map((recurso, index) => {
-                    const categoria = recurso.categoria || (/(lab|laborat|informatica|informática|computador)/i.test(recurso.nome) ? 'laboratorio' : 'equipamento');
-                    return {
-                        id: recurso.id || Date.now() + index,
-                        nome: recurso.nome || `Recurso ${index + 1}`,
-                        categoria,
-                        tipo: recurso.tipo || categoria,
-                        capacidade: Number(recurso.capacidade || 0),
-                        descricao: recurso.descricao || '',
-                        status: recurso.status || 'disponivel',
-                        criadoEm: recurso.criadoEm || new Date().toISOString()
-                    };
-                });
-
-                saveResources(normalizedResources);
-                return normalizedResources;
-            }
-
-            return recursos;
-        } catch (error) {
-            return [];
-        }
+    const normalizeReservation = (reservation) => {
+        const start = String(reservation.horario_inicio || '').slice(0, 5);
+        const lesson = aulas.find((item) => item.horario.startsWith(start));
+        const end = String(reservation.horario_fim || '').slice(0, 5);
+        return {
+            ...reservation,
+            recursoId: reservation.recursoId ?? reservation.recurso_id,
+            data: String(reservation.data).slice(0, 10),
+            aula: lesson?.id || reservation.aula,
+            aulaNome: lesson?.nome || reservation.aulaNome,
+            horario: lesson?.horario || (start && end ? `${start} - ${end}` : reservation.horario || '')
+        };
     };
 
-    const saveResources = (resources) => {
-        localStorage.setItem(RESOURCES_KEY, JSON.stringify(resources));
-    };
-
-    const getReservations = () => {
-        try {
-            return JSON.parse(localStorage.getItem(RESERVAS_KEY) || '[]');
-        } catch (error) {
-            return [];
-        }
-    };
-
-    const saveReservations = (reservations) => {
-        localStorage.setItem(RESERVAS_KEY, JSON.stringify(reservations));
+    const loadApiData = async () => {
+        const [resources, reservations, agenda] = await Promise.all([
+            api.listarRecursos(),
+            api.listarReservas(),
+            api.listarAgenda()
+        ]);
+        saveResources(resources);
+        saveReservations(reservations.map(normalizeReservation));
+        agendaCache = agenda.map(normalizeReservation);
     };
 
     let resourceEditingId = null; // Rastreia qual recurso está sendo editado
@@ -343,19 +290,19 @@ document.addEventListener('DOMContentLoaded', () => {
         const card = document.createElement('div');
         card.className = 'card';
         card.dataset.category = category;
-        card.dataset.resourceId = id;
+        card.dataset.resourceId = escapeHTML(id);
         card.innerHTML = `
             <div class="card-header">
                 <div class="card-icon ${iconClass}"><i class="fa-solid fa-desktop"></i></div>
                 <span class="badge ${badgeClass}"><i class="fa-solid fa-circle"></i> ${badgeText}</span>
             </div>
-            <h3>${title}</h3>
-            <p class="card-desc">${description}</p>
+            <h3>${escapeHTML(title)}</h3>
+            <p class="card-desc">${escapeHTML(description)}</p>
             <div class="card-footer">
                 <span>Disponível para agendamento</span>
                 <button class="btn-card-action primary" type="button">Reservar</button>
-                <button class="btn-card-action secondary btn-edit-resource" type="button" data-id="${id}"><i class="fa-solid fa-pen"></i> Editar</button>
-                <button class="btn-card-action danger btn-remove-resource" type="button" data-id="${id}">Remover</button>
+                <button class="btn-card-action secondary btn-edit-resource" type="button" data-id="${escapeHTML(id)}"><i class="fa-solid fa-pen"></i> Editar</button>
+                <button class="btn-card-action danger btn-remove-resource" type="button" data-id="${escapeHTML(id)}">Remover</button>
             </div>
         `;
         return card;
@@ -376,10 +323,10 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (recurso) {
                 document.getElementById('resourceName').value = recurso.nome;
-                document.getElementById('resourceCategory').value = recurso.categoria;
+                document.getElementById('resourceCategory').value = recurso.categoria === 'laboratorio' ? 'laboratorio' : 'equipamento';
                 document.getElementById('resourceStatus').value = recurso.status;
                 document.getElementById('resourceCapacity').value = recurso.capacidade || 0;
-                document.getElementById('resourceType').value = recurso.tipo || 'laboratorio';
+                document.getElementById('resourceType').value = recurso.categoria;
                 document.getElementById('resourceDescription').value = recurso.descricao || '';
             }
         } else {
@@ -392,7 +339,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('resourceDescription').value = '';
             document.getElementById('resourceCapacity').value = 0;
             document.getElementById('resourceStatus').value = 'disponivel';
-            document.getElementById('resourceType').value = 'laboratorio';
+            document.getElementById('resourceType').value = category === 'laboratorio' ? 'laboratorio' : 'projetor';
         }
         
         resourceModal.classList.add('active');
@@ -472,10 +419,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Atualizar select de recursos
         if (recursoSelect) {
-            const opcoesAnteriores = recursoSelect.querySelectorAll('option').length;
-            for (let i = opcoesAnteriores; i > 4; i--) {
-                recursoSelect.removeChild(recursoSelect.lastChild);
-            }
+            recursoSelect.innerHTML = '<option value="" disabled selected>Selecione um recurso</option>';
 
             recursos.forEach((recurso) => {
                 const option = document.createElement('option');
@@ -487,11 +431,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Adicionar cards dos recursos
         recursos.forEach((recurso) => {
-            const iconClass = recurso.categoria === 'laboratorio' ? 'blue' : 'green';
+            const categoriaVisual = recurso.categoria === 'laboratorio' ? 'laboratorio' : 'equipamento';
+            const iconClass = categoriaVisual === 'laboratorio' ? 'blue' : 'green';
             const badgeClass = recurso.status === 'disponivel' ? 'available' : 'occupied';
             const badgeText = recurso.status === 'disponivel' ? 'Disponível' : recurso.status === 'manutencao' ? 'Manutenção' : 'Indisponível';
             
-            const card = createResourceCard(recurso.id, recurso.nome, recurso.descricao || '', iconClass, badgeClass, badgeText, recurso.categoria);
+            const card = createResourceCard(recurso.id, recurso.nome, recurso.descricao || '', iconClass, badgeClass, badgeText, categoriaVisual);
             resourcesGrid.appendChild(card);
 
             // Evento de reservar
@@ -529,7 +474,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (resourceForm) {
-        resourceForm.addEventListener('submit', (event) => {
+        resourceForm.addEventListener('submit', async (event) => {
             event.preventDefault();
 
             const name = document.getElementById('resourceName').value.trim();
@@ -544,51 +489,33 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            const recursos = getResources();
+            const dados = {
+                nome: name,
+                categoria: category === 'laboratorio' ? 'laboratorio' : tipo,
+                capacidade: capacity,
+                descricao: description,
+                status
+            };
 
-            if (resourceEditingId) {
-                // Modo edição
-                const index = recursos.findIndex(r => r.id == resourceEditingId);
-                if (index !== -1) {
-                    recursos[index].nome = name;
-                    recursos[index].categoria = category;
-                    recursos[index].tipo = tipo;
-                    recursos[index].capacidade = capacity;
-                    recursos[index].descricao = description;
-                    recursos[index].status = status;
-                    recursos[index].atualizadoEm = new Date().toISOString();
+            try {
+                if (resourceEditingId) {
+                    await api.atualizarRecurso(resourceEditingId, dados);
+                } else {
+                    await api.criarRecurso(dados);
                 }
-                saveResources(recursos);
+                await loadApiData();
                 resourceForm.reset();
                 closeResourceModal();
+                renderResources();
+                alert(resourceEditingId ? 'Recurso atualizado com sucesso!' : 'Recurso criado com sucesso!');
                 resourceEditingId = null;
-                renderResources();
-                alert('Recurso atualizado com sucesso!');
-            } else {
-                // Modo criação
-                const novoRecurso = {
-                    id: Date.now(),
-                    nome: name,
-                    categoria: category,
-                    tipo: tipo,
-                    capacidade: capacity,
-                    descricao: description,
-                    status: status,
-                    criadoEm: new Date().toISOString()
-                };
-
-                recursos.push(novoRecurso);
-                saveResources(recursos);
-
-                resourceForm.reset();
-                closeResourceModal();
-                renderResources();
-                alert('Recurso criado com sucesso!');
+            } catch (error) {
+                alert(error.message || 'Não foi possível salvar o recurso.');
             }
         });
     }
 
-    document.addEventListener('click', (event) => {
+    document.addEventListener('click', async (event) => {
         const cancelButton = event.target.closest('.btn-cancel-reservation');
         if (cancelButton) {
             const id = cancelButton.dataset.id;
@@ -604,11 +531,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            const reservas = getReservations().filter((item) => String(item.id) !== String(id));
-            saveReservations(reservas);
-            renderMyReservations();
-            renderSchedule();
-            alert('Reserva cancelada com sucesso!');
+            try {
+                await api.cancelarReserva(id);
+                await loadApiData();
+                renderMyReservations();
+                renderSchedule();
+                alert('Reserva cancelada com sucesso!');
+            } catch (error) {
+                alert(error.message || 'Não foi possível cancelar a reserva.');
+            }
             return;
         }
 
@@ -618,18 +549,22 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        if (event.target.classList.contains('btn-remove-resource')) {
-            const id = event.target.dataset.id;
+        const removeButton = event.target.closest('.btn-remove-resource');
+        if (removeButton) {
+            const id = removeButton.dataset.id;
             if (!confirm('Tem certeza que deseja remover este recurso?')) {
                 return;
             }
 
-            const recursos = getResources();
-            const novaLista = recursos.filter((r) => r.id != id);
-            saveResources(novaLista);
-            
-            event.target.closest('.card').remove();
-            alert('Recurso removido com sucesso!');
+            try {
+                await api.deletarRecurso(id);
+                await loadApiData();
+                renderResources();
+                renderSchedule();
+                alert('Recurso removido com sucesso!');
+            } catch (error) {
+                alert(error.message || 'Não foi possível remover o recurso.');
+            }
         } else if (event.target.classList.contains('btn-edit-resource') || event.target.closest('.btn-edit-resource')) {
             const btnEdit = event.target.classList.contains('btn-edit-resource') ? event.target : event.target.closest('.btn-edit-resource');
             const id = btnEdit.dataset.id;
@@ -759,7 +694,7 @@ document.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('focus', refreshCurrentDate);
 
     if (bookingForm) {
-        bookingForm.addEventListener('submit', (event) => {
+        bookingForm.addEventListener('submit', async (event) => {
             event.preventDefault();
 
             const recursoId = recursoSelect ? recursoSelect.value : null;
@@ -780,89 +715,51 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const recursoNome = recursoSelect.options[recursoSelect.selectedIndex].text;
             const aulaTexto = aulaSelect.options[aulaSelect.selectedIndex].text;
-            const horario = aulaTexto.match(/\(([^)]+)\)/);
-            const usuarioAtual = getCurrentUser();
-
             if (reservationEditingId) {
                 if (!userHasManagementAccess()) {
                     alert('Apenas coordenadores e administradores podem editar agendamentos.');
                     return;
                 }
 
-                const reservas = getReservations();
-                const index = reservas.findIndex((reserva) => String(reserva.id) === String(reservationEditingId));
-                if (index === -1) {
-                    alert('Agendamento não encontrado.');
-                    return;
+                try {
+                    await api.atualizarReserva(reservationEditingId, {
+                        recurso_id: Number(recursoId), data, aula: Number(aula), disciplina, turma
+                    });
+                    await loadApiData();
+                    closeModal();
+                    renderMyReservations();
+                    renderSchedule();
+                    alert('Agendamento atualizado com sucesso!');
+                } catch (error) {
+                    alert(error.message || 'Não foi possível atualizar o agendamento.');
                 }
-
-                const conflito = reservas.some((reserva) =>
-                    String(reserva.id) !== String(reservationEditingId) &&
-                    String(reserva.recursoId) === String(recursoId) &&
-                    String(reserva.data).slice(0, 10) === data &&
-                    String(reserva.aula) === String(aula)
-                );
-                if (conflito) {
-                    alert('Esse recurso já está reservado nessa data e aula.');
-                    return;
-                }
-
-                reservas[index] = {
-                    ...reservas[index],
-                    recursoId,
-                    recursoNome,
-                    disciplina,
-                    turma,
-                    data,
-                    aula,
-                    aulaNome: aulaTexto.split(' (')[0],
-                    horario: horario ? horario[1] : ''
-                };
-                saveReservations(reservas);
-                closeModal();
-                renderMyReservations();
-                renderSchedule();
-                alert('Agendamento atualizado com sucesso!');
                 return;
             }
 
-            const novaReserva = {
-                id: Date.now(),
-                recursoId,
-                recursoNome,
-                professor: usuarioAtual ? usuarioAtual.nome : '',
-                usuarioEmail: usuarioAtual ? usuarioAtual.email : '',
-                disciplina,
-                turma,
-                data,
-                aula,
-                aulaNome: aulaTexto.split(' (')[0],
-                horario: horario ? horario[1] : '',
-                status: 'confirmada',
-                criadoEm: new Date().toISOString()
-            };
-
-            const reservas = getReservations();
-            reservas.push(novaReserva);
-            saveReservations(reservas);
-
-            alert(
-                `Reserva realizada com sucesso!\n\nRecurso: ${recursoNome}\nData: ${data}\nHorário: ${aulaTexto}\nDisciplina: ${disciplina}\nTurma: ${turma}`
-            );
-
-            bookingForm.reset();
-            if (dataInput) {
-                dataInput.value = today;
+            try {
+                await api.criarReserva({ recurso_id: Number(recursoId), data, aula: Number(aula), disciplina, turma });
+                await loadApiData();
+                alert(`Reserva realizada com sucesso!\n\nRecurso: ${recursoNome}\nData: ${data}\nHorário: ${aulaTexto}\nDisciplina: ${disciplina}\nTurma: ${turma}`);
+                bookingForm.reset();
+                if (dataInput) dataInput.value = today;
+                closeModal();
+                renderMyReservations();
+                renderSchedule();
+            } catch (error) {
+                alert(error.message || 'Não foi possível realizar a reserva.');
             }
-
-            closeModal();
-            renderMyReservations();
-            renderSchedule();
         });
     }
 
-    renderResources();
-    renderMyReservations();
-    renderSchedule();
-    showDashboardResources();
+    loadApiData()
+        .then(() => {
+            renderResources();
+            renderMyReservations();
+            renderSchedule();
+            showDashboardResources();
+        })
+        .catch((error) => {
+            console.error(error);
+            alert(error.message || 'Não foi possível carregar os dados do sistema.');
+        });
 });

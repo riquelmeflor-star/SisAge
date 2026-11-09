@@ -36,6 +36,7 @@
                 <span class="user-name">Profª Ana Silva</span>
                 <span class="user-role">Docente</span>
             </div>
+            <a href="reset-password.html" class="btn-secondary">Alterar senha</a>
             <button id="btnLogout" class="btn-secondary" style="margin-left: 10px;">Sair</button>
         </div>
     </header>
@@ -163,10 +164,7 @@
                 <div class="form-group">
                     <label for="recurso">Recurso ou Espaço</label>
                     <select id="recurso" required>
-                        <option value="1">Laboratório de Info 1</option>
-                        <option value="2">Laboratório de Info 2</option>
-                        <option value="3">Projetor Epson X12</option>
-                        <option value="4">Caixa de Som Ativa</option>
+                        <option value="" disabled selected>Selecione um recurso</option>
                     </select>
                 </div>
                 <div class="form-row">
@@ -261,6 +259,7 @@
         </div>
     </div>
 
+    <script src="api.js"></script>
     <script src="auth.js"></script>
     <script src="app.js"></script>
 </body>

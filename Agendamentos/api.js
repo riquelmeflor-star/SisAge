@@ -1,5 +1,5 @@
 // Configuração de API
-const API_BASE_URL = 'http://localhost:3000/api';
+const API_BASE_URL = '/api';
 
 class APIService {
     constructor() {
@@ -37,7 +37,7 @@ class APIService {
                 headers
             });
 
-            if (response.status === 401) {
+            if (response.status === 401 && this.token) {
                 this.removeToken();
                 window.location.href = '/login.html';
                 throw new Error('Sessão expirada. Faça login novamente.');
@@ -72,10 +72,10 @@ class APIService {
         });
     }
 
-    resetPassword(email, novaSenha) {
+    resetPassword(senhaAtual, novaSenha) {
         return this.request('/auth/reset-password', {
             method: 'POST',
-            body: JSON.stringify({ email, novaSenha })
+            body: JSON.stringify({ senhaAtual, novaSenha })
         });
     }
 
@@ -85,10 +85,10 @@ class APIService {
         return this.request('/recursos');
     }
 
-    criarRecurso(nome, categoria, tipo, capacidade, descricao, status = 'disponivel') {
+    criarRecurso(dados) {
         return this.request('/recursos', {
             method: 'POST',
-            body: JSON.stringify({ nome, categoria, tipo, capacidade, descricao, status })
+            body: JSON.stringify(dados)
         });
     }
 
@@ -111,10 +111,21 @@ class APIService {
         return this.request('/reservas');
     }
 
-    criarReserva(recurso_id, data, aula, disciplina, turma) {
+    listarAgenda() {
+        return this.request('/agenda');
+    }
+
+    criarReserva(dados) {
         return this.request('/reservas', {
             method: 'POST',
-            body: JSON.stringify({ recurso_id, data, aula, disciplina, turma })
+            body: JSON.stringify(dados)
+        });
+    }
+
+    atualizarReserva(id, dados) {
+        return this.request(`/reservas/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify(dados)
         });
     }
 

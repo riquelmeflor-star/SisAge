@@ -1,118 +1,89 @@
-# 🚀 Integração com Banco de Dados MySQL - Sistema CETI
+# PostgreSQL e deploy na Vercel
 
-Este guia explica como configurar e executar o sistema com integração completa ao banco de dados MySQL.
+O backend usa PostgreSQL via `pg`. O banco de produção é provisionado pela integração Neon conectada ao projeto Vercel `sis-age`; a conexão é fornecida em `DATABASE_URL`.
 
-## 📋 Pré-requisitos
+## Desenvolvimento local
 
-- **Node.js** (v14+) - [Baixar](https://nodejs.org/)
-- **MySQL** (v5.7+) - [Baixar](https://dev.mysql.com/downloads/mysql/)
-- **npm** (vem com Node.js)
+- Node.js 20 ou superior e npm.
+- PostgreSQL local ou as variáveis de desenvolvimento da Vercel.
 
-## 🔧 Instalação
-
-### 1️⃣ Criar a base de dados MySQL
-
-Abra o MySQL Workbench ou MySQL Command Line e execute o script `sql.sql`:
-
-```bash
-mysql -u root -p < "g:\PROFESSOR SEDUC\2026\CETI SJCF\INTEGRAL\Projeto integrador\Projeto Integrador G2\Projeto Integrador G2\Biblioteca\sql\sql.sql"
-```
-
-Ou via MySQL Workbench:
-- Abra o arquivo `sql.sql`
-- Clique em **Execute All** (ou pressione Ctrl+Shift+Enter)
-
-**Verifique se a base de dados foi criada:**
-```sql
-USE ceti_db;
-SHOW TABLES;
-```
-
-### 2️⃣ Instalar dependências Node.js
-
-Navegue até a pasta do projeto:
+Instale dependências e aplique o schema:
 
 ```powershell
-cd "g:\PROFESSOR SEDUC\2026\CETI SJCF\INTEGRAL\Projeto integrador\Projeto Integrador G2\Projeto Integrador G2"
-```
-
-Instale as dependências:
-
-```bash
 npm install
+vercel env pull .env.local --environment development
+npm run db:setup
 ```
 
-### 3️⃣ Configurar banco e login Google
-
-O servidor usa o banco `ceti_agendamento`, criado pelo script `Agendamentos/sql/sql.sql`.
-Para habilitar o login Google, crie um ID do cliente OAuth do tipo Aplicativo da Web no Google Cloud Console e cadastre `http://localhost:3000` como origem JavaScript autorizada. Configure a variável antes de iniciar o servidor:
+Inicie localmente com o mesmo ambiente:
 
 ```powershell
-$env:GOOGLE_CLIENT_ID="seu-client-id.apps.googleusercontent.com"
-npm start
+node --env-file=.env.local server.js
 ```
 
-Para produção, cadastre também o domínio HTTPS da aplicação nas origens autorizadas e configure a mesma variável no ambiente do servidor.
+Para um PostgreSQL local, defina `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER` e `PGPASSWORD` antes de executar `npm run db:setup` ou `npm start`.
 
-### 4️⃣ Configurar variáveis do MySQL
+## Banco de produção
 
-Se necessário, edite o arquivo `server.js` e atualize as credenciais MySQL:
+O schema idempotente está em `Agendamentos/sql/sql.sql`. Para aplicá-lo ao banco Neon conectado ao projeto:
 
-```javascript
-const pool = mysql.createPool({
-    host: 'localhost',      // Seu host MySQL
-    user: 'root',           // Seu usuário MySQL
-    password: '',           // Sua senha MySQL (deixe em branco se não tiver)
-    database: 'ceti_db',    // Banco de dados criado
-    ...
-});
+```powershell
+vercel env pull .env.local --environment production
+npm run db:setup
 ```
 
-### 5️⃣ Iniciar o servidor
+O schema cria tabelas, índices e recursos iniciais, mas não cria contas com senhas públicas. Registre a primeira conta pela aplicação e promova-a a administradora:
 
-```bash
-npm start
+```powershell
+npm run db:promote-admin -- seu-email@dominio.com
 ```
 
-Você verá:
+As novas contas são docentes por padrão. Guarde `DATABASE_URL` e `JWT_SECRET` apenas nas variáveis do projeto Vercel; não os coloque no repositório.
+
+## Deploy na Vercel
+
+O projeto `sis-age` está vinculado e a integração Neon fornece `DATABASE_URL` para Production, Preview e Development. `vercel.json` configura o Express, e `npm run build` copia as páginas e assets para `public/`, ignorado pelo Git e sem incluir `Agendamentos/sql/`.
+
+Para publicar a versão de produção após aplicar o schema:
+
+```powershell
+vercel deploy --prod
 ```
-Servidor rodando em http://localhost:3000
-Certifique-se de que o MySQL está rodando com a base de dados "ceti_db"
-```
 
-## 📱 Usando a aplicação
+O login Google é opcional. Para habilitá-lo, configure `GOOGLE_CLIENT_ID` no projeto Vercel e autorize o domínio HTTPS da aplicação no Google Cloud Console.
 
-Após o servidor estar rodando:
+## Primeiro acesso
 
-1. Abra o navegador: **http://localhost:3000**
-2. Faça login com uma das contas padrão:
-   - **Email:** ana@ceti.edu.br | **Senha:** 123456 (Docente)
-   - **Email:** carla@ceti.edu.br | **Senha:** 123456 (Coordenador)
-   - **Email:** marcos@ceti.edu.br | **Senha:** 123456 (Docente)
-3. Docentes e coordenadores podem clicar no avatar para escolher ou trocar uma foto JPG, PNG ou WebP de até 2 MB. A foto fica salva no navegador usado para o acesso.
+1. Abra o domínio publicado ou `http://localhost:3000`.
+2. Crie uma conta pela tela de cadastro.
+3. Execute `db:promote-admin` para conceder acesso administrativo à conta escolhida.
+4. Para alterar a senha, entre na conta e use **Alterar senha**; a senha atual é obrigatória.
+5. A foto de perfil permanece salva apenas no navegador utilizado.
 
 ## 📁 Estrutura de pastas
 
 ```
-Projeto Integrador G2/
-├── server.js                    # Servidor Express (novo)
-├── package.json                 # Dependências Node.js (novo)
-├── Biblioteca/
-│   ├── index.html               # Dashboard (atualizado)
-│   ├── login.html               # Login (atualizado)
-│   ├── register.html            # Registro (atualizado)
-│   ├── reset-password.html      # Reset de senha (atualizado)
-│   ├── relatorios.html          # Relatórios (atualizado)
-│   ├── api.js                   # Classe APIService (novo)
-│   ├── app.js                   # Lógica do dashboard (atualizado)
-│   ├── auth.js                  # Autenticação (atualizado)
-│   ├── report.js                # Geração de relatórios
-│   ├── css/
-│   │   └── style.css
-│   ├── js/
-│   │   └── script.js
-│   └── sql/
-│       └── sql.sql              # Schema MySQL
+SisAge/
+├── server.js
+├── package.json
+├── vercel.json
+├── scripts/
+│   ├── prepare-vercel.js
+│   ├── setup-postgres.js
+│   └── promote-admin.js
+└── Agendamentos/
+  ├── index.html
+  ├── login.html
+  ├── register.html
+  ├── reset-password.html
+  ├── relatorios.html
+  ├── api.js
+  ├── app.js
+  ├── auth.js
+  ├── report.js
+  ├── css/style.css
+  ├── js/script.js
+  └── sql/sql.sql              # Schema PostgreSQL
 ```
 
 ## 🔌 API Endpoints
@@ -132,7 +103,9 @@ Projeto Integrador G2/
 
 ### Reservas
 - `GET /api/reservas` - Listar minhas reservas (requer token)
+- `GET /api/agenda` - Consultar disponibilidade da agenda (requer token)
 - `POST /api/reservas` - Criar nova reserva (requer token)
+- `PUT /api/reservas/:id` - Atualizar reserva (requer token, coordenador/admin)
 - `DELETE /api/reservas/:id` - Cancelar reserva (requer token)
 
 ### Relatórios
@@ -140,27 +113,13 @@ Projeto Integrador G2/
 
 ## 🐛 Solução de problemas
 
-### Erro: "connect ECONNREFUSED 127.0.0.1:3306"
-- **Problema:** MySQL não está rodando
-- **Solução:** Inicie o serviço MySQL
-  ```bash
-  # Windows (como Administrador)
-  net start MySQL80
-  
-  # macOS (via Homebrew)
-  brew services start mysql
-  
-  # Linux
-  sudo systemctl start mysql
-  ```
+### Erro: conexão PostgreSQL recusada
+- Confirme que `DATABASE_URL` está definida no ambiente usado.
+- Para desenvolvimento local, confirme que o PostgreSQL está ativo e que os valores `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER` e `PGPASSWORD` estão corretos.
+- No Vercel, verifique a integração `sis-age-postgres` e faça um novo deploy depois de alterar variáveis.
 
-### Erro: "Unknown database 'ceti_db'"
-- **Problema:** Banco de dados não foi criado
-- **Solução:** Execute o script `sql.sql` novamente
-
-### Erro: "Access denied for user 'root'@'localhost'"
-- **Problema:** Senha MySQL incorreta
-- **Solução:** Atualize a senha em `server.js` ou use uma conta sem senha
+### Erro: relation "usuarios" does not exist
+- Aplique o schema com `vercel env run -e production -- npm run db:setup`.
 
 ### Frontend não consegue conectar ao servidor
 - **Problema:** Servidor não está rodando ou está em porta diferente
@@ -169,9 +128,7 @@ Projeto Integrador G2/
   2. Verifique se a porta é 3000
   3. Atualize `API_BASE_URL` em `api.js` se necessário
 
-## 📊 Desenvolv
-
-imento
+## Desenvolvimento
 
 ### Iniciar em modo desenvolvimento (com auto-reload):
 ```bash
@@ -185,15 +142,16 @@ npm install --save-dev nodemon
 
 ## 🔐 Segurança
 
-**⚠️ IMPORTANTE:** 
-- Mude a chave secreta em `server.js` (`SECRET_KEY`) para produção
-- Nunca commite arquivos com credenciais reais
-- Use variáveis de ambiente para dados sensíveis
+**Importante:**
+- `JWT_SECRET` é obrigatório em produção e deve ser gerado aleatoriamente.
+- Não versione `.env.local`, `DATABASE_URL` ou `JWT_SECRET`.
+- O seed não cria usuários com senhas públicas. Crie uma conta e promova-a com `db:promote-admin`.
 
 ## ✅ Checklist de Setup
 
-- [ ] MySQL instalado e rodando
-- [ ] Base de dados `ceti_db` criada (via `sql.sql`)
+- [ ] Integração Neon conectada ao projeto Vercel
+- [ ] Schema aplicado com `npm run db:setup`
+- [ ] Primeiro usuário promovido a administrador
 - [ ] Node.js instalado
 - [ ] Dependências instaladas (`npm install`)
 - [ ] Servidor rodando (`npm start`)
