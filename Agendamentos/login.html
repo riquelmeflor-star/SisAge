@@ -73,6 +73,46 @@
             box-shadow: 0 0 0 3px rgba(0,128,255,0.12);
         }
 
+        .password-field {
+            position: relative;
+        }
+
+        .password-field input {
+            padding-right: 46px;
+        }
+
+        .password-toggle {
+            position: absolute;
+            top: 50%;
+            right: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            padding: 4px;
+            transform: translateY(-50%);
+            border: 0;
+            border-radius: 4px;
+            background: transparent;
+            color: var(--navy);
+            cursor: pointer;
+        }
+
+        .password-toggle:hover {
+            background: #eef3f8;
+        }
+
+        .password-toggle svg {
+            width: 20px;
+            height: 20px;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 1.8;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
         .auth-form button {
             padding: 12px 18px;
             border: none;
@@ -151,7 +191,16 @@
 
                 <div>
                     <label for="senhaLogin">Senha</label>
-                    <input id="senhaLogin" type="password" placeholder="Digite sua senha" required>
+                    <div class="password-field">
+                        <input id="senhaLogin" type="password" placeholder="Digite sua senha" required>
+                        <button id="toggleSenha" class="password-toggle" type="button" aria-label="Mostrar senha" aria-controls="senhaLogin" aria-pressed="false">
+                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"></path>
+                                <circle cx="12" cy="12" r="3"></circle>
+                                <path class="password-hidden-mark" d="m4 4 16 16"></path>
+                            </svg>
+                        </button>
+                    </div>
                 </div>
 
                 <button type="submit">Entrar</button>
@@ -166,6 +215,19 @@
         </div>
     </div>
 
+    <script>
+        const senhaLogin = document.getElementById('senhaLogin');
+        const toggleSenha = document.getElementById('toggleSenha');
+        const marcaSenhaOculta = toggleSenha.querySelector('.password-hidden-mark');
+
+        toggleSenha.addEventListener('click', () => {
+            const senhaVisivel = senhaLogin.type === 'password';
+            senhaLogin.type = senhaVisivel ? 'text' : 'password';
+            toggleSenha.setAttribute('aria-label', senhaVisivel ? 'Ocultar senha' : 'Mostrar senha');
+            toggleSenha.setAttribute('aria-pressed', String(senhaVisivel));
+            marcaSenhaOculta.style.display = senhaVisivel ? 'none' : '';
+        });
+    </script>
     <script src="api.js"></script>
     <script src="auth.js"></script>
 </body>
