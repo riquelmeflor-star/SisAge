@@ -32,13 +32,17 @@ vercel env pull .env.local --environment production
 npm run db:setup
 ```
 
-O schema cria tabelas, índices e recursos iniciais, mas não cria contas com senhas públicas. Registre a primeira conta pela aplicação e promova-a a administradora:
+O schema cria tabelas, índices e recursos iniciais. Para criar a conta única de administrador principal, defina `SUPERADMIN_NAME`, `SUPERADMIN_EMAIL` e `SUPERADMIN_PASSWORD` no `.env.local` (senha com pelo menos 12 caracteres) e execute:
 
 ```powershell
-npm run db:promote-admin -- seu-email@dominio.com
+npm run db:setup-superadmin
 ```
 
-As novas contas são docentes por padrão. Guarde `DATABASE_URL` e `JWT_SECRET` apenas nas variáveis do projeto Vercel; não os coloque no repositório.
+O comando cria ou atualiza a conta indicada como `superadmin`; o banco impede a existência de mais de uma conta principal. Para recuperar a senha, informe `SUPERADMIN_EMAIL` e a nova `SUPERADMIN_PASSWORD` no ambiente local protegido e execute `npm run db:reset-superadmin-password`. Usuários autenticados também podem alterar sua própria senha em **Alterar senha**, informando a senha atual.
+
+Somente o administrador principal pode gerar tokens de convite de quatro dígitos no painel. Cada token é de uso único, expira em 24 horas e é exigido no cadastro. Tentativas com tokens inválidos são limitadas a cinco por IP a cada 15 minutos. Uma nova conta Google também deve primeiro ser cadastrada usando um convite.
+
+Guarde as variáveis secretas somente em ambientes protegidos; não as coloque no repositório.
 
 ## Deploy na Vercel
 
@@ -54,10 +58,10 @@ O login Google é opcional. Para habilitá-lo, configure `GOOGLE_CLIENT_ID` no p
 
 ## Primeiro acesso
 
-1. Abra o domínio publicado ou `http://localhost:3000`.
-2. Crie uma conta pela tela de cadastro.
-3. Execute `db:promote-admin` para conceder acesso administrativo à conta escolhida.
-4. Para alterar a senha, entre na conta e use **Alterar senha**; a senha atual é obrigatória.
+1. Configure `SUPERADMIN_NAME`, `SUPERADMIN_EMAIL` e `SUPERADMIN_PASSWORD`, depois execute `npm run db:setup-superadmin`.
+2. Abra o domínio publicado ou `http://localhost:3000` e entre com a conta principal.
+3. Gere um convite para cada novo usuário; os convites expiram em 24 horas.
+4. Para alterar a senha, entre na conta e use **Alterar senha**; para recuperar a senha principal, execute `npm run db:reset-superadmin-password`.
 5. A foto de perfil permanece salva apenas no navegador utilizado.
 
 ## 📁 Estrutura de pastas
@@ -70,6 +74,8 @@ SisAge/
 ├── scripts/
 │   ├── prepare-vercel.js
 │   ├── setup-postgres.js
+│   ├── setup-superadmin.js
+│   ├── reset-superadmin-password.js
 │   └── promote-admin.js
 └── Agendamentos/
   ├── index.html
@@ -94,6 +100,7 @@ SisAge/
 - `POST /api/auth/google` - Validar credencial Google e iniciar sessão
 - `POST /api/auth/register` - Registrar novo usuário
 - `POST /api/auth/reset-password` - Redefinir senha
+- `POST /api/admin/tokens-cadastro` - Gerar convite de uso único (requer administrador principal)
 
 ### Recursos
 - `GET /api/recursos` - Listar todos os recursos
@@ -145,13 +152,13 @@ npm install --save-dev nodemon
 **Importante:**
 - `JWT_SECRET` é obrigatório em produção e deve ser gerado aleatoriamente.
 - Não versione `.env.local`, `DATABASE_URL` ou `JWT_SECRET`.
-- O seed não cria usuários com senhas públicas. Crie uma conta e promova-a com `db:promote-admin`.
+- Configure a conta principal com `npm run db:setup-superadmin`; não existe senha padrão.
 
 ## ✅ Checklist de Setup
 
 - [ ] Integração Neon conectada ao projeto Vercel
 - [ ] Schema aplicado com `npm run db:setup`
-- [ ] Primeiro usuário promovido a administrador
+- [ ] Administrador principal configurado com `npm run db:setup-superadmin`
 - [ ] Node.js instalado
 - [ ] Dependências instaladas (`npm install`)
 - [ ] Servidor rodando (`npm start`)

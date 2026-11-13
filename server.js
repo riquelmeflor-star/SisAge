@@ -9,6 +9,7 @@ const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+app.set('trust proxy', 1);
 if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
     throw new Error('JWT_SECRET precisa ser configurado em produção');
 }
@@ -53,6 +54,8 @@ const senhaEstaCriptografada = (senha) => /^\$2[aby]\$/.test(senha);
 const verificarSenha = (senha, senhaArmazenada) => senhaEstaCriptografada(senhaArmazenada)
     ? bcryptjs.compare(senha, senhaArmazenada)
     : Promise.resolve(senha === senhaArmazenada);
+const hashTokenCadastro = (token) => crypto.createHmac('sha256', SECRET_KEY).update(token).digest('hex');
+const cargosGerenciadores = ['coordenador', 'admin', 'superadmin'];
 
 // Middleware para verificar token
 const verificarToken = (req, res, next) => {
@@ -140,16 +143,11 @@ app.post('/api/auth/google', async (req, res) => {
             [email]
         );
 
-        let usuario = usuarios[0];
+        const usuario = usuarios[0];
         if (!usuario) {
-            const nome = contaGoogle.name || email;
-            const senhaAleatoria = crypto.randomBytes(32).toString('hex');
-            const senhaHash = await bcryptjs.hash(senhaAleatoria, 10);
-            const { rows } = await pool.query(
-                'INSERT INTO usuarios (nome, email, senha, cargo) VALUES ($1, $2, $3, $4) RETURNING id',
-                [nome, email, senhaHash, 'docente']
-            );
-            usuario = { id: rows[0].id, nome, email, cargo: 'docente' };
+            return res.status(403).json({
+                erro: 'Cadastre-se com um token de convite antes de usar o login Google.'
+            });
         }
 
         const token = jwt.sign(
@@ -229,32 +227,127 @@ app.post('/api/auth/login', async (req, res) => {
 
 // Registrar
 app.post('/api/auth/register', async (req, res) => {
-    const { nome, email, senha } = req.body;
+    const { nome, email, senha, token: tokenCadastro } = req.body || {};
+    const nomeNormalizado = typeof nome === 'string' ? nome.trim() : '';
+    const emailNormalizado = typeof email === 'string' ? email.trim().toLowerCase() : '';
 
-    if (!nome || !email || !senha) {
-        return res.status(400).json({ erro: 'Nome, email e senha são obrigatórios' });
+    if (
+        !nomeNormalizado ||
+        nomeNormalizado.length > 100 ||
+        !emailNormalizado ||
+        emailNormalizado.length > 120 ||
+        typeof senha !== 'string' ||
+        !senha ||
+        typeof tokenCadastro !== 'string' ||
+        !/^\d{4}$/.test(tokenCadastro)
+    ) {
+        return res.status(400).json({ erro: 'Nome, email, senha e token de 4 dígitos são obrigatórios' });
     }
     if (senha.length < 6) {
         return res.status(400).json({ erro: 'A senha deve ter pelo menos 6 caracteres' });
     }
 
+    const ipHash = crypto.createHash('sha256').update(`${SECRET_KEY}:${req.ip}`).digest('hex');
+    let client;
+    let transacaoIniciada = false;
     try {
-        const { rows } = await pool.query(
+        client = await pool.connect();
+        await client.query('BEGIN');
+        transacaoIniciada = true;
+        const tokenHash = hashTokenCadastro(tokenCadastro);
+        const { rows: tokens } = await client.query(
+            `SELECT token_hash FROM tokens_cadastro
+             WHERE token_hash = $1 AND utilizado_em IS NULL AND expira_em > CURRENT_TIMESTAMP
+             FOR UPDATE`,
+            [tokenHash]
+        );
+        if (!tokens.length) {
+            await client.query('ROLLBACK');
+            transacaoIniciada = false;
+            const { rows: tentativas } = await pool.query(
+                `INSERT INTO tentativas_cadastro (ip_hash, tentativas)
+                 VALUES ($1, 1)
+                 ON CONFLICT (ip_hash) DO UPDATE SET
+                    tentativas = CASE
+                        WHEN tentativas_cadastro.inicio_janela < CURRENT_TIMESTAMP - INTERVAL '15 minutes' THEN 1
+                        ELSE tentativas_cadastro.tentativas + 1
+                    END,
+                    inicio_janela = CASE
+                        WHEN tentativas_cadastro.inicio_janela < CURRENT_TIMESTAMP - INTERVAL '15 minutes' THEN CURRENT_TIMESTAMP
+                        ELSE tentativas_cadastro.inicio_janela
+                    END
+                 RETURNING tentativas`,
+                [ipHash]
+            );
+            if (tentativas[0].tentativas > 5) {
+                return res.status(429).json({ erro: 'Muitas tentativas. Aguarde 15 minutos para tentar novamente.' });
+            }
+            return res.status(400).json({ erro: 'Token inválido, expirado ou já utilizado.' });
+        }
+
+        const { rows: usuarios } = await client.query(
             `INSERT INTO usuarios (nome, email, senha, cargo)
              VALUES ($1, $2, $3, 'docente')
              ON CONFLICT (email) DO NOTHING
              RETURNING id`,
-            [nome, email, await bcryptjs.hash(senha, 10)]
+            [nomeNormalizado, emailNormalizado, await bcryptjs.hash(senha, 10)]
         );
-
-        if (rows.length === 0) {
+        if (!usuarios.length) {
+            await client.query('ROLLBACK');
+            transacaoIniciada = false;
             return res.status(400).json({ erro: 'Email já cadastrado' });
         }
 
+        await client.query(
+            `UPDATE tokens_cadastro
+             SET utilizado_em = CURRENT_TIMESTAMP, usuario_id = $1
+             WHERE token_hash = $2`,
+            [usuarios[0].id, tokenHash]
+        );
+        await client.query('COMMIT');
+        transacaoIniciada = false;
         res.json({ sucesso: true, mensagem: 'Usuário registrado com sucesso' });
     } catch (error) {
+        if (client && transacaoIniciada) {
+            try {
+                await client.query('ROLLBACK');
+            } catch (rollbackError) {
+                console.error('Falha ao desfazer transação de cadastro:', rollbackError);
+            }
+        }
         console.error(error);
         res.status(500).json({ erro: 'Erro ao registrar usuário' });
+    } finally {
+        if (client) client.release();
+    }
+});
+
+app.post('/api/admin/tokens-cadastro', verificarToken, async (req, res) => {
+    if (req.usuarioCargo !== 'superadmin') {
+        return res.status(403).json({ erro: 'Apenas o administrador principal pode gerar tokens.' });
+    }
+
+    try {
+        await pool.query(
+            'DELETE FROM tokens_cadastro WHERE utilizado_em IS NOT NULL OR expira_em <= CURRENT_TIMESTAMP'
+        );
+        for (let tentativa = 0; tentativa < 10; tentativa += 1) {
+            const codigo = String(crypto.randomInt(0, 10000)).padStart(4, '0');
+            const tokenHash = hashTokenCadastro(codigo);
+            try {
+                await pool.query(
+                    'INSERT INTO tokens_cadastro (token_hash, criado_por) VALUES ($1, $2)',
+                    [tokenHash, req.usuarioId]
+                );
+                return res.status(201).json({ token: codigo, expiraEmHoras: 24 });
+            } catch (error) {
+                if (error.code !== '23505') throw error;
+            }
+        }
+        res.status(503).json({ erro: 'Não foi possível gerar um token único. Tente novamente.' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ erro: 'Erro ao gerar token de cadastro' });
     }
 });
 
@@ -265,12 +358,14 @@ app.post('/api/auth/reset-password', verificarToken, async (req, res) => {
     if (!senhaAtual || !novaSenha) {
         return res.status(400).json({ erro: 'Senha atual e nova senha são obrigatórias' });
     }
-    if (novaSenha.length < 6) {
-        return res.status(400).json({ erro: 'A nova senha deve ter pelo menos 6 caracteres' });
-    }
-
     try {
-        const { rows: usuarios } = await pool.query('SELECT id, senha FROM usuarios WHERE id = $1', [req.usuarioId]);
+        const { rows: usuarios } = await pool.query('SELECT id, senha, cargo FROM usuarios WHERE id = $1', [req.usuarioId]);
+        const tamanhoMinimo = usuarios[0]?.cargo === 'superadmin' ? 12 : 6;
+        if (novaSenha.length < tamanhoMinimo) {
+            return res.status(400).json({
+                erro: `A nova senha deve ter pelo menos ${tamanhoMinimo} caracteres`
+            });
+        }
         if (usuarios.length === 0 || !(await verificarSenha(senhaAtual, usuarios[0].senha))) {
             return res.status(401).json({ erro: 'Senha atual incorreta' });
         }
@@ -301,7 +396,7 @@ app.get('/api/recursos', async (req, res) => {
 
 app.get('/api/agenda', verificarToken, async (req, res) => {
     try {
-        const podeVerDetalhes = ['coordenador', 'admin'].includes(req.usuarioCargo);
+        const podeVerDetalhes = cargosGerenciadores.includes(req.usuarioCargo);
         const { rows: reservas } = await pool.query(
             `SELECT r.id, r.usuario_id, r.recurso_id AS "recursoId",
                 to_char(r.data_reserva, 'YYYY-MM-DD') AS data,
@@ -329,7 +424,7 @@ app.post('/api/recursos', verificarToken, async (req, res) => {
     const { nome, categoria, capacidade, descricao, status = 'disponivel' } = req.body;
 
     // Apenas coordenadores e admins podem criar
-    if (!['coordenador', 'admin'].includes(req.usuarioCargo)) {
+    if (!cargosGerenciadores.includes(req.usuarioCargo)) {
         return res.status(403).json({ erro: 'Acesso negado' });
     }
 
@@ -355,7 +450,7 @@ app.put('/api/recursos/:id', verificarToken, async (req, res) => {
     const { id } = req.params;
     const { nome, categoria, capacidade, descricao, status } = req.body;
 
-    if (!['coordenador', 'admin'].includes(req.usuarioCargo)) {
+    if (!cargosGerenciadores.includes(req.usuarioCargo)) {
         return res.status(403).json({ erro: 'Acesso negado' });
     }
 
@@ -377,7 +472,7 @@ app.put('/api/recursos/:id', verificarToken, async (req, res) => {
 app.delete('/api/recursos/:id', verificarToken, async (req, res) => {
     const { id } = req.params;
 
-    if (!['coordenador', 'admin'].includes(req.usuarioCargo)) {
+    if (!cargosGerenciadores.includes(req.usuarioCargo)) {
         return res.status(403).json({ erro: 'Acesso negado' });
     }
 
@@ -397,7 +492,7 @@ app.delete('/api/recursos/:id', verificarToken, async (req, res) => {
 // Listar reservas
 app.get('/api/reservas', verificarToken, async (req, res) => {
     try {
-        const filtroUsuario = ['coordenador', 'admin'].includes(req.usuarioCargo) ? '' : 'WHERE r.usuario_id = $1';
+        const filtroUsuario = cargosGerenciadores.includes(req.usuarioCargo) ? '' : 'WHERE r.usuario_id = $1';
         const parametros = filtroUsuario ? [req.usuarioId] : [];
         const { rows: reservas } = await pool.query(
             `SELECT r.id, r.usuario_id, r.recurso_id AS "recursoId",
@@ -455,7 +550,7 @@ app.post('/api/reservas', verificarToken, async (req, res) => {
 });
 
 app.put('/api/reservas/:id', verificarToken, async (req, res) => {
-    if (!['coordenador', 'admin'].includes(req.usuarioCargo)) {
+    if (!cargosGerenciadores.includes(req.usuarioCargo)) {
         return res.status(403).json({ erro: 'Acesso negado' });
     }
 
@@ -503,7 +598,7 @@ app.delete('/api/reservas/:id', verificarToken, async (req, res) => {
         }
 
         // Apenas o criador ou admin pode cancelar
-        if (reservas[0].usuario_id !== req.usuarioId && !['coordenador', 'admin'].includes(req.usuarioCargo)) {
+        if (reservas[0].usuario_id !== req.usuarioId && !cargosGerenciadores.includes(req.usuarioCargo)) {
             return res.status(403).json({ erro: 'Acesso negado' });
         }
 

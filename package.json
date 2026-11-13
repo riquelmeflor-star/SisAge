@@ -8,6 +8,8 @@
     "build": "node scripts/prepare-vercel.js",
     "db:setup": "node --env-file=.env.local scripts/setup-postgres.js",
     "db:promote-admin": "node --env-file=.env.local scripts/promote-admin.js",
+    "db:setup-superadmin": "node --env-file=.env.local scripts/setup-superadmin.js",
+    "db:reset-superadmin-password": "node --env-file=.env.local scripts/reset-superadmin-password.js",
     "dev": "nodemon server.js"
   },
   "keywords": [

@@ -65,11 +65,15 @@ class APIService {
         });
     }
 
-    register(nome, email, senha, cargo = 'docente') {
+    register(nome, email, senha, token) {
         return this.request('/auth/register', {
             method: 'POST',
-            body: JSON.stringify({ nome, email, senha, cargo })
+            body: JSON.stringify({ nome, email, senha, token })
         });
+    }
+
+    gerarTokenCadastro() {
+        return this.request('/admin/tokens-cadastro', { method: 'POST' });
     }
 
     resetPassword(senhaAtual, novaSenha) {

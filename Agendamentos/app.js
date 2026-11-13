@@ -23,7 +23,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const adminTools = document.getElementById('adminTools');
     const btnAddLab = document.getElementById('btnAddLab');
     const btnAddEquipment = document.getElementById('btnAddEquipment');
-    const managementRoles = ['coordenador', 'admin'];
+    const managementRoles = ['coordenador', 'admin', 'superadmin'];
+    const superAdminTools = document.getElementById('superAdminTools');
+    const btnGenerateSignupToken = document.getElementById('btnGenerateSignupToken');
+    const signupTokenOutput = document.getElementById('signupTokenOutput');
     const themeToggle = document.getElementById('btnThemeToggle');
     const bookingModalTitle = modal ? modal.querySelector('.modal-header h3') : null;
     const bookingSubmitButton = bookingForm ? bookingForm.querySelector('button[type="submit"]') : null;
@@ -221,13 +224,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const toggleManagementControls = () => {
         const allowed = userHasManagementAccess();
+        const usuarioAtual = getCurrentUser();
         if (adminTools) {
             adminTools.style.display = allowed ? 'flex' : 'none';
+        }
+        if (superAdminTools) {
+            superAdminTools.style.display = usuarioAtual?.cargo === 'superadmin' ? 'flex' : 'none';
         }
         document.querySelectorAll('.btn-remove-resource').forEach((button) => {
             button.style.display = allowed ? 'inline-block' : 'none';
         });
     };
+
+    if (btnGenerateSignupToken) {
+        btnGenerateSignupToken.addEventListener('click', async () => {
+            btnGenerateSignupToken.disabled = true;
+            try {
+                const resultado = await api.gerarTokenCadastro();
+                signupTokenOutput.value = resultado.token;
+            } catch (error) {
+                alert(error.message || 'Não foi possível gerar o token de cadastro.');
+            } finally {
+                btnGenerateSignupToken.disabled = false;
+            }
+        });
+    }
 
     const getReservationStatusLabel = (status) => {
         switch (status) {

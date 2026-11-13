@@ -39,7 +39,9 @@ const renderUserProfile = () => {
     }
 
     if (userRole) {
-        userRole.textContent = user.cargo === 'coordenador' ? 'Coordenador' : user.cargo === 'admin' ? 'Administrador' : 'Docente';
+        userRole.textContent = user.cargo === 'superadmin' ? 'Administrador principal' :
+            user.cargo === 'coordenador' ? 'Coordenador' :
+                user.cargo === 'admin' ? 'Administrador' : 'Docente';
     }
 
     if (userAvatar) {
@@ -387,9 +389,10 @@ const initRegisterPage = () => {
         const email = document.getElementById('email').value.trim().toLowerCase();
         const senha = document.getElementById('senha').value.trim();
         const confirmarSenha = document.getElementById('confirmarSenha').value.trim();
+        const tokenCadastro = document.getElementById('tokenCadastro').value.trim();
 
-        if (!nome || !email || !senha || !confirmarSenha) {
-            alert('Preencha todos os campos para concluir o cadastro.');
+        if (!nome || !email || !senha || !confirmarSenha || !/^\d{4}$/.test(tokenCadastro)) {
+            alert('Preencha todos os campos e informe o token de convite de 4 dígitos.');
             return;
         }
 
@@ -404,7 +407,7 @@ const initRegisterPage = () => {
         }
 
         try {
-            await api.register(nome, email, senha);
+            await api.register(nome, email, senha, tokenCadastro);
             alert('Usuário cadastrado com sucesso!');
             window.location.href = 'login.html';
         } catch (error) {
@@ -429,8 +432,9 @@ const initResetPage = () => {
             return;
         }
 
-        if (novaSenha.length < 6) {
-            alert('A nova senha deve ter pelo menos 6 caracteres.');
+        const tamanhoMinimo = getCurrentUser()?.cargo === 'superadmin' ? 12 : 6;
+        if (novaSenha.length < tamanhoMinimo) {
+            alert(`A nova senha deve ter pelo menos ${tamanhoMinimo} caracteres.`);
             return;
         }
 

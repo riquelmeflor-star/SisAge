@@ -4,8 +4,30 @@ CREATE TABLE IF NOT EXISTS usuarios (
     email VARCHAR(120) NOT NULL UNIQUE,
     senha VARCHAR(255) NOT NULL,
     cargo VARCHAR(20) NOT NULL DEFAULT 'docente'
-        CHECK (cargo IN ('docente', 'coordenador', 'admin')),
+        CHECK (cargo IN ('docente', 'coordenador', 'admin', 'superadmin')),
     criado_em TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+ALTER TABLE usuarios DROP CONSTRAINT IF EXISTS usuarios_cargo_check;
+ALTER TABLE usuarios ADD CONSTRAINT usuarios_cargo_check
+    CHECK (cargo IN ('docente', 'coordenador', 'admin', 'superadmin'));
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_usuario_unico_superadmin
+    ON usuarios (cargo) WHERE cargo = 'superadmin';
+
+CREATE TABLE IF NOT EXISTS tokens_cadastro (
+    token_hash CHAR(64) PRIMARY KEY,
+    criado_por BIGINT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    criado_em TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    expira_em TIMESTAMPTZ NOT NULL DEFAULT (CURRENT_TIMESTAMP + INTERVAL '24 hours'),
+    utilizado_em TIMESTAMPTZ,
+    usuario_id BIGINT REFERENCES usuarios(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS tentativas_cadastro (
+    ip_hash CHAR(64) PRIMARY KEY,
+    tentativas INTEGER NOT NULL DEFAULT 0,
+    inicio_janela TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS recursos (

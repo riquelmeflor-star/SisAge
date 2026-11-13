@@ -73,6 +73,11 @@
                 <button class="btn-primary" id="btnAddLab">Adicionar Laboratório</button>
                 <button class="btn-secondary" id="btnAddEquipment">Adicionar Equipamento</button>
             </div>
+            <div class="admin-tools" id="superAdminTools">
+                <button class="btn-primary" id="btnGenerateSignupToken" type="button">Gerar token de cadastro</button>
+                <label for="signupTokenOutput">Token válido por 24 horas, para um cadastro:</label>
+                <input id="signupTokenOutput" type="text" readonly aria-live="polite" placeholder="Gere um token para exibi-lo aqui">
+            </div>
 
             <!-- Resource Cards -->
             <section class="resources-grid" id="laboratorios">
